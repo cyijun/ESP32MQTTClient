@@ -45,10 +45,10 @@ void onMqttConnect(esp_mqtt_client_handle_t client)
     mqttClient.setMQTTState(true);
 
     mqttClient.subscribe(subscribeTopic, [](const String &payload)
-                         { log_i("%s %s", subscribeTopic, payload.c_str()); });
+                         { log_i("%s: %s", subscribeTopic, payload.c_str()); });
 
     mqttClient.subscribe("bar/#", [](const String &topic, const String &payload)
-                         { log_i("%s %s", topic, payload.c_str()); });
+                         { log_i("%s: %s", topic, payload.c_str()); });
 }
 
 esp_err_t handleMQTT(esp_mqtt_event_handle_t event)
