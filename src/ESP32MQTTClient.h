@@ -72,9 +72,9 @@ public:
     bool setMaxOutPacketSize(const uint16_t size);
     bool setMaxPacketSize(const uint16_t size); // override the default value of 1024
     bool publish(const String &topic, const String &payload, int qos = 0, bool retain = false);
-    bool subscribe(const String &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos = 0);
-    bool subscribe(const String &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos = 0);
-    bool unsubscribe(const String &topic);                                       // Unsubscribes from the topic, if it exists, and removes it from the CallbackList.
+    bool subscribe(esp_mqtt_client_handle_t client, const String &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos = 0);
+    bool subscribe(esp_mqtt_client_handle_t client, const String &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos = 0);
+    bool unsubscribe(esp_mqtt_client_handle_t client, const String &topic);                                       // Unsubscribes from the topic, if it exists, and removes it from the CallbackList.
     void setKeepAlive(uint16_t keepAliveSeconds);                                // Change the keepalive interval (15 seconds by default)
     inline void setMqttClientName(const char *name) { _mqttClientName = name; }; // Allow to set client name manually (must be done in setup(), else it will not work.)
     inline void setMqttUri(const char *uri, const char *username = "", const char *password = "")
@@ -94,7 +94,7 @@ public:
 
     // Default to onConnectionEstablished, you might want to override this for special cases like two MQTT connections in the same sketch
     inline void setOnConnectionEstablishedCallback(ConnectionEstablishedCallback callback) { _connectionEstablishedCallback = callback; };
-    void mqttMessageReceivedCallback(const char *topic, char *payload, unsigned int length);
+    void mqttMessageReceivedCallback(esp_mqtt_client_handle_t client,const char *topic, char *payload, unsigned int length);
     // private:
 
     bool connectToMqttBroker();

@@ -92,80 +92,91 @@ bool ESP32MQTTClient::publish(const String &topic, const String &payload, int qo
     return success;
 }
 
-bool ESP32MQTTClient::subscribe(const String &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos)
+bool ESP32MQTTClient::subscribe(esp_mqtt_client_handle_t client, const String &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos)
 {
-    bool success = false;
-    if (esp_mqtt_client_subscribe(_mqtt_client, topic.c_str(), qos) != -1)
+    if (client == _mqtt_client)
     {
-        success = true;
-    }
+        bool success = false;
+        if (esp_mqtt_client_subscribe(_mqtt_client, topic.c_str(), qos) != -1)
+        {
+            success = true;
+        }
 
-    if (success)
-    {
-        // Add the record to the subscription list only if it does not exists.
-        bool found = false;
-        for (std::size_t i = 0; i < _topicSubscriptionList.size() && !found; i++)
-            found = _topicSubscriptionList[i].topic.equals(topic);
-
-        if (!found)
-            _topicSubscriptionList.push_back({topic, messageReceivedCallback, NULL});
-    }
-
-    if (_enableSerialLogs)
-    {
         if (success)
-            log_i("MQTT: Subscribed to [%s]\n", topic.c_str());
-        else
-            log_i("MQTT! subscribe failed");
-    }
+        {
+            // Add the record to the subscription list only if it does not exists.
+            bool found = false;
+            for (std::size_t i = 0; i < _topicSubscriptionList.size() && !found; i++)
+                found = _topicSubscriptionList[i].topic.equals(topic);
 
-    return success;
-}
+            if (!found)
+                _topicSubscriptionList.push_back({topic, messageReceivedCallback, NULL});
+        }
 
-bool ESP32MQTTClient::subscribe(const String &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos)
-{
-    if (subscribe(topic, (MessageReceivedCallback)NULL, qos))
-    {
-        _topicSubscriptionList[_topicSubscriptionList.size() - 1].callbackWithTopic = messageReceivedCallback;
-        return true;
+        if (_enableSerialLogs)
+        {
+            if (success)
+                log_i("MQTT: Subscribed to [%s]\n", topic.c_str());
+            else
+                log_i("MQTT! subscribe failed");
+        }
+
+        return success;
     }
     return false;
 }
 
-bool ESP32MQTTClient::unsubscribe(const String &topic)
+bool ESP32MQTTClient::subscribe(esp_mqtt_client_handle_t client, const String &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos)
 {
-    // Do not try to unsubscribe if MQTT is not connected.
-    if (!isMqttConnected())
+    if (client == _mqtt_client)
     {
-        if (_enableSerialLogs)
-            log_i("MQTT! Trying to unsubscribe when disconnected, skipping.");
-
-        return false;
-    }
-
-    for (std::size_t i = 0; i < _topicSubscriptionList.size(); i++)
-    {
-        if (_topicSubscriptionList[i].topic.equals(topic))
+        if (subscribe(client, topic, (MessageReceivedCallback)NULL, qos))
         {
-            if (esp_mqtt_client_unsubscribe(_mqtt_client, topic.c_str()) != -1)
-            {
-                _topicSubscriptionList.erase(_topicSubscriptionList.begin() + i);
-                i--;
-
-                if (_enableSerialLogs)
-                    log_i("MQTT: Unsubscribed from %s\n", topic.c_str());
-            }
-            else
-            {
-                if (_enableSerialLogs)
-                    log_i("MQTT! unsubscribe failed");
-
-                return false;
-            }
+            _topicSubscriptionList[_topicSubscriptionList.size() - 1].callbackWithTopic = messageReceivedCallback;
+            return true;
         }
     }
+    return false;
+}
 
-    return true;
+bool ESP32MQTTClient::unsubscribe(esp_mqtt_client_handle_t client, const String &topic)
+{
+    if (client == _mqtt_client)
+    {
+        // Do not try to unsubscribe if MQTT is not connected.
+        if (!isMqttConnected())
+        {
+            if (_enableSerialLogs)
+                log_i("MQTT! Trying to unsubscribe when disconnected, skipping.");
+
+            return false;
+        }
+
+        for (std::size_t i = 0; i < _topicSubscriptionList.size(); i++)
+        {
+            if (_topicSubscriptionList[i].topic.equals(topic))
+            {
+                if (esp_mqtt_client_unsubscribe(_mqtt_client, topic.c_str()) != -1)
+                {
+                    _topicSubscriptionList.erase(_topicSubscriptionList.begin() + i);
+                    i--;
+
+                    if (_enableSerialLogs)
+                        log_i("MQTT: Unsubscribed from %s\n", topic.c_str());
+                }
+                else
+                {
+                    if (_enableSerialLogs)
+                        log_i("MQTT! unsubscribe failed");
+
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+    return false;
 }
 
 void ESP32MQTTClient::setKeepAlive(uint16_t keepAliveSeconds)
@@ -330,38 +341,41 @@ bool ESP32MQTTClient::mqttTopicMatch(const String &topic1, const String &topic2)
     return false;
 }
 
-void ESP32MQTTClient::mqttMessageReceivedCallback(const char *topic, char *payload, unsigned int length)
+void ESP32MQTTClient::mqttMessageReceivedCallback(esp_mqtt_client_handle_t client, const char *topic, char *payload, unsigned int length)
 {
-    // Convert the payload into a String
-    unsigned int strTerminationPos;
-    if (strlen(topic) + length + 9 >= _mqttMaxInPacketSize)
+    if (client == _mqtt_client)
     {
-        strTerminationPos = length;
-
-        if (_enableSerialLogs)
-            log_i("MQTT! Your message may be truncated, please set setMaxPacketSize() to a higher value.\n");
-    }
-    else
-        strTerminationPos = length;
-
-    // Second, we add the string termination code at the end of the payload and we convert it to a String object
-    payload[strTerminationPos] = '\0';
-    String payloadStr(payload);
-    String topicStr(topic);
-
-    // Logging
-    if (_enableSerialLogs)
-        log_i("MQTT >> [%s] %s\n", topic, payloadStr.c_str());
-
-    // Send the message to subscribers
-    for (std::size_t i = 0; i < _topicSubscriptionList.size(); i++)
-    {
-        if (mqttTopicMatch(_topicSubscriptionList[i].topic, String(topic)))
+        // Convert the payload into a String
+        unsigned int strTerminationPos;
+        if (strlen(topic) + length + 9 >= _mqttMaxInPacketSize)
         {
-            if (_topicSubscriptionList[i].callback != NULL)
-                _topicSubscriptionList[i].callback(payloadStr); // Call the callback
-            if (_topicSubscriptionList[i].callbackWithTopic != NULL)
-                _topicSubscriptionList[i].callbackWithTopic(topicStr, payloadStr); // Call the callback
+            strTerminationPos = length;
+
+            if (_enableSerialLogs)
+                log_i("MQTT! Your message may be truncated, please set setMaxPacketSize() to a higher value.\n");
+        }
+        else
+            strTerminationPos = length;
+
+        // Second, we add the string termination code at the end of the payload and we convert it to a String object
+        payload[strTerminationPos] = '\0';
+        String payloadStr(payload);
+        String topicStr(topic);
+
+        // Logging
+        if (_enableSerialLogs)
+            log_i("MQTT >> [%s] %s\n", topic, payloadStr.c_str());
+
+        // Send the message to subscribers
+        for (std::size_t i = 0; i < _topicSubscriptionList.size(); i++)
+        {
+            if (mqttTopicMatch(_topicSubscriptionList[i].topic, String(topic)))
+            {
+                if (_topicSubscriptionList[i].callback != NULL)
+                    _topicSubscriptionList[i].callback(payloadStr); // Call the callback
+                if (_topicSubscriptionList[i].callbackWithTopic != NULL)
+                    _topicSubscriptionList[i].callbackWithTopic(topicStr, payloadStr); // Call the callback
+            }
         }
     }
 }
