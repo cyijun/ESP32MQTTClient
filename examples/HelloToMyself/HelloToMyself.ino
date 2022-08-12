@@ -21,12 +21,12 @@ void setup()
 
     mqttClient.enableDebuggingMessages();
 
-    mqttClient.setMqttUri(server);
+    mqttClient.setURI(server);
     mqttClient.enableLastWillMessage("lwt", "I am going offline");
     mqttClient.setKeepAlive(30);
     WiFi.begin(ssid, pass);
     WiFi.setHostname("c3test");
-    mqttClient.connectToMqttBroker();
+    mqttClient.loopStart();
 }
 
 int pubCount = 0;
@@ -39,40 +39,17 @@ void loop()
     delay(2000);
 }
 
-void onMqttConnect(esp_mqtt_client_handle_t client)
+void onConnectionEstablishedCallback()
 {
-    log_i("onMqttConnect");
-    mqttClient.setMQTTState(true);
-
-    mqttClient.subscribe(client, subscribeTopic, [](const String &payload)
+    mqttClient.subscribe(subscribeTopic, [](const String &payload)
                          { log_i("%s: %s", subscribeTopic, payload.c_str()); });
 
-    mqttClient.subscribe(client, "bar/#", [](const String &topic, const String &payload)
+    mqttClient.subscribe("bar/#", [](const String &topic, const String &payload)
                          { log_i("%s: %s", topic, payload.c_str()); });
 }
 
 esp_err_t handleMQTT(esp_mqtt_event_handle_t event)
 {
-    esp_mqtt_client_handle_t mqtt_client_of_event = event->client;
-    esp_mqtt_error_codes_t *error_handle = event->error_handle;
-
-    switch (event->event_id)
-    {
-    case MQTT_EVENT_CONNECTED:
-        onMqttConnect(mqtt_client_of_event);
-        break;
-    case MQTT_EVENT_DATA:
-        mqttClient.mqttMessageReceivedCallback(mqtt_client_of_event, String(event->topic).substring(0, event->topic_len).c_str(), event->data, event->data_len);
-        break;
-    case MQTT_EVENT_DISCONNECTED:
-        mqttClient.setMQTTState(false);
-        log_i("disconnected (%fs)", millis() / 1000.0);
-        break;
-    case MQTT_EVENT_ERROR:
-        mqttClient.printError(error_handle);
-        break;
-    default:
-        break;
-    }
+    mqttClient.onEventCallback(event);
     return ESP_OK;
 }
