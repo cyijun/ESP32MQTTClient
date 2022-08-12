@@ -380,7 +380,7 @@ void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
         case MQTT_EVENT_CONNECTED:
             log_i("onMqttConnect");
             setConnectionState(true);
-            onConnectionEstablishedCallback();
+            onConnectionEstablishedCallback(_mqtt_client);
             break;
         case MQTT_EVENT_DATA:
             onMessageReceivedCallback(String(event->topic).substring(0, event->topic_len).c_str(), event->data, event->data_len);

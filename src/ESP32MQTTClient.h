@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <mqtt_client.h>
 
-void onConnectionEstablishedCallback();
+void onConnectionEstablishedCallback(esp_mqtt_client_handle_t client);
 esp_err_t handleMQTT(esp_mqtt_event_handle_t event);
 
 typedef std::function<void(const String &message)> MessageReceivedCallback;
@@ -81,7 +81,8 @@ public:
         _mqttPassword = password;
     };
 
-    inline bool isConnected() const { return _mqttConnected; };                                    // Return true if mqtt is connected
+    inline bool isConnected() const { return _mqttConnected; };    
+    inline bool isMyTurn(esp_mqtt_client_handle_t client) const { return _mqtt_client==client; }; // Return true if mqtt is connected
 
     inline const char *getClientName() { return _mqttClientName; };
     inline const char *getURI() { return _mqttUri; };
@@ -93,7 +94,7 @@ public:
     bool loopStart();
 
     void onEventCallback(esp_mqtt_event_handle_t event);
-
+    
 private:
     void onMessageReceivedCallback(const char *topic, char *payload, unsigned int length);
     bool mqttTopicMatch(const String &topic1, const String &topic2);
