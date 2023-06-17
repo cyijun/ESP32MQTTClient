@@ -60,7 +60,7 @@ public:
     void setTaskPrio(int prio);
 
     /// Main loop, to call at each sketch loop()
-    void loop();
+    //void loop();
 
     // MQTT related
     void setOnMessageCallback();
@@ -73,7 +73,7 @@ public:
     bool subscribe(const String &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos = 0);
     bool unsubscribe(const String &topic);                                       // Unsubscribes from the topic, if it exists, and removes it from the CallbackList.
     void setKeepAlive(uint16_t keepAliveSeconds);                                // Change the keepalive interval (15 seconds by default)
-    inline void setClientName(const char *name) { _mqttClientName = name; }; // Allow to set client name manually (must be done in setup(), else it will not work.)
+    inline void setMqttClientName(const char *name) { _mqttClientName = name; }; // Allow to set client name manually (must be done in setup(), else it will not work.)
     inline void setURI(const char *uri, const char *username = "", const char *password = "")
     { // Allow setting the MQTT info manually (must be done in setup())
         _mqttUri = uri;
