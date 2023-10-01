@@ -42,6 +42,21 @@ void ESP32MQTTClient::setTaskPrio(int prio)
     _mqtt_config.task_prio = prio;
 }
 
+void ESP32MQTTClient::setClientCert(const char * clientCert)
+{
+	 _mqtt_config.client_cert_pem = clientCert;
+}
+
+void ESP32MQTTClient::setCaCert(const char * caCert)
+{
+	 _mqtt_config.cert_pem = caCert;
+}
+
+void ESP32MQTTClient::setKey(const char * clientKey)
+{
+	_mqtt_config.client_key_pem = clientKey;
+		
+}
 // =============== Public functions for interaction with thus lib =================
 
 void ESP32MQTTClient::setConnectionState(bool state)
