@@ -39,7 +39,7 @@ void loop()
     delay(2000);
 }
 
-void onConnectionEstablishedCallback(esp_mqtt_client_handle_t client)
+void onMqttConnect(esp_mqtt_client_handle_t client)
 {
     if (mqttClient.isMyTurn(client)) // can be omitted if only one client
     {

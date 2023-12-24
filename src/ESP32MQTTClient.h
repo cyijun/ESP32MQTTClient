@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <mqtt_client.h>
 
-void onConnectionEstablishedCallback(esp_mqtt_client_handle_t client);
+void onMqttConnect(esp_mqtt_client_handle_t client);
 esp_err_t handleMQTT(esp_mqtt_event_handle_t event);
 
 typedef std::function<void(const String &message)> MessageReceivedCallback;
