@@ -85,6 +85,15 @@ public:
         _mqttPassword = password;
     };
 
+    inline void setURL(const char *url, const char *username = "", const char *password = "")
+    { // Allow setting the MQTT info manually (must be done in setup())
+        char *uri=(char *)malloc(100);
+        sprintf(uri,"mqtt://%s", url);
+        _mqttUri = uri;
+        _mqttUsername = username;
+        _mqttPassword = password;
+    };
+
     inline bool isConnected() const { return _mqttConnected; };    
     inline bool isMyTurn(esp_mqtt_client_handle_t client) const { return _mqtt_client==client; }; // Return true if mqtt is connected
 
