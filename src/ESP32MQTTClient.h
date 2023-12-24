@@ -85,10 +85,12 @@ public:
         _mqttPassword = password;
     };
 
-    inline void setURL(const char *url, const char *username = "", const char *password = "")
+    inline void setURL(const char *url, const uint16_t port, const char *username = "", const char *password = "")
     { // Allow setting the MQTT info manually (must be done in setup())
-        char *uri=(char *)malloc(100);
-        sprintf(uri,"mqtt://%s", url);
+        char *uri=(char *)malloc(200);
+        sprintf(uri,"mqtt://%s:%u", url, port);
+        if (_enableSerialLogs)
+            log_i("MQTT uri %s\n", uri);
         _mqttUri = uri;
         _mqttUsername = username;
         _mqttPassword = password;
