@@ -5,7 +5,7 @@
 
 A thread-safe MQTT client for Arduino ESP32xx.
 
-## About this branch
+## About *next* branch
 
 Part of mqtt component has been changed in ESP-IDF v5.1. The encapsulation needs to be modified, otherwise it cannot be compiled. Refer to [compiling error](https://github.com/cyijun/ESP32MQTTClient/actions/runs/7595202860/job/20687511391) and latest [mqtt_client.h](https://github.com/espressif/esp-mqtt/blob/master/include/mqtt_client.h).
 
