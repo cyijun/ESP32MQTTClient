@@ -364,8 +364,14 @@ void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, char *payload
         strTerminationPos = length;
 
     // Second, we add the string termination code at the end of the payload and we convert it to a String object
-    payload[strTerminationPos] = '\0';
+    String payloadStr;
     String payloadStr(payload);
+    if (payload) {
+      payload[strTerminationPos] = '\0';
+      payloadStr=String(payload);
+    } else {
+        payloadStr="";
+    }
     String topicStr(topic);
 
     // Logging
