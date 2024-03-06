@@ -5,7 +5,6 @@ ESP32MQTTClient::ESP32MQTTClient(/* args */)
     _mqttConnected = false;
     _mqttMaxInPacketSize = 1024;
     _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
-    _mqtt_config.event_handle = handleMQTT;
 }
 
 ESP32MQTTClient::~ESP32MQTTClient()
@@ -34,27 +33,27 @@ void ESP32MQTTClient::enableLastWillMessage(const char *topic, const char *messa
 
 void ESP32MQTTClient::disableAutoReconnect()
 {
-    _mqtt_config.disable_auto_reconnect = true;
+    _mqtt_config.network.disable_auto_reconnect = true;
 }
 
 void ESP32MQTTClient::setTaskPrio(int prio)
 {
-    _mqtt_config.task_prio = prio;
+    _mqtt_config.task.priority = prio;
 }
 
 void ESP32MQTTClient::setClientCert(const char * clientCert)
 {
-	 _mqtt_config.client_cert_pem = clientCert;
+	 _mqtt_config.credentials.authentication.certificate = clientCert;
 }
 
 void ESP32MQTTClient::setCaCert(const char * caCert)
 {
-	 _mqtt_config.cert_pem = caCert;
+	 _mqtt_config.broker.verification.certificate = caCert;
 }
 
 void ESP32MQTTClient::setKey(const char * clientKey)
 {
-	_mqtt_config.client_key_pem = clientKey;
+	_mqtt_config.credentials.authentication.key = clientKey;
 		
 }
 // =============== Public functions for interaction with thus lib =================
@@ -188,7 +187,7 @@ bool ESP32MQTTClient::unsubscribe(const String &topic)
 
 void ESP32MQTTClient::setKeepAlive(uint16_t keepAliveSeconds)
 {
-    _mqtt_config.keepalive = keepAliveSeconds;
+    _mqtt_config.session.keepalive = keepAliveSeconds;
 }
 
 // ================== Private functions ====================-
@@ -272,20 +271,21 @@ bool ESP32MQTTClient::loopStart()
 
         // explicitly set the server/port here in case they were not provided in the constructor
 
-        _mqtt_config.uri = _mqttUri;
-        _mqtt_config.client_id = _mqttClientName;
-        _mqtt_config.username = _mqttUsername;
-        _mqtt_config.password = _mqttPassword;
-        _mqtt_config.lwt_topic = _mqttLastWillTopic;
-        _mqtt_config.lwt_msg = _mqttLastWillMessage;
-        _mqtt_config.lwt_qos = _mqttLastWillQos;
-        _mqtt_config.lwt_retain = _mqttLastWillRetain;
-        _mqtt_config.lwt_msg_len = strlen(_mqttLastWillMessage);
-        _mqtt_config.disable_clean_session = _disableMQTTCleanSession;
-        _mqtt_config.out_buffer_size = _mqttMaxOutPacketSize;
-        _mqtt_config.buffer_size = _mqttMaxInPacketSize;
+        _mqtt_config.broker.address.uri = _mqttUri;
+        _mqtt_config.credentials.client_id = _mqttClientName;
+        _mqtt_config.credentials.username = _mqttUsername;
+        _mqtt_config.credentials.authentication.password = _mqttPassword;
+        _mqtt_config.session.last_will.topic = _mqttLastWillTopic;
+        _mqtt_config.session.last_will.msg = _mqttLastWillMessage;
+        _mqtt_config.session.last_will.qos = _mqttLastWillQos;
+        _mqtt_config.session.last_will.retain = _mqttLastWillRetain;
+        _mqtt_config.session.last_will.msg_len = strlen(_mqttLastWillMessage);
+        _mqtt_config.session.disable_clean_session = _disableMQTTCleanSession;
+        _mqtt_config.buffer.out_size = _mqttMaxOutPacketSize;
+        _mqtt_config.buffer.size = _mqttMaxInPacketSize;
 
         _mqtt_client = esp_mqtt_client_init(&_mqtt_config);
+        esp_mqtt_client_register_event(_mqtt_client, MQTT_EVENT_ANY, handleMQTT, _mqtt_client);
         esp_mqtt_client_start(_mqtt_client);
     }
     else
