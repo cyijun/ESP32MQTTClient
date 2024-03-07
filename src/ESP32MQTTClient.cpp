@@ -285,7 +285,7 @@ bool ESP32MQTTClient::loopStart()
         _mqtt_config.buffer.size = _mqttMaxInPacketSize;
 
         _mqtt_client = esp_mqtt_client_init(&_mqtt_config);
-        esp_mqtt_client_register_event(_mqtt_client, MQTT_EVENT_ANY, handleMQTT, _mqtt_client);
+        esp_mqtt_client_register_event(_mqtt_client, MQTT_EVENT_ANY, handleMQTT, this);
         esp_mqtt_client_start(_mqtt_client);
     }
     else
@@ -398,16 +398,20 @@ void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
         switch (event->event_id)
         {
         case MQTT_EVENT_CONNECTED:
-            log_i("onMqttConnect");
+		    if (_enableSerialLogs)
+                log_i("MQTT -->> onMqttConnect");
             setConnectionState(true);
             onMqttConnect(_mqtt_client);
             break;
         case MQTT_EVENT_DATA:
+		    if (_enableSerialLogs)
+                log_i("MQTT -->> onMqttEventData");
             onMessageReceivedCallback(String(event->topic).substring(0, event->topic_len).c_str(), event->data, event->data_len);
             break;
         case MQTT_EVENT_DISCONNECTED:
             setConnectionState(false);
-            log_i("%s disconnected (%fs)", _mqttUri, millis() / 1000.0);
+			if (_enableSerialLogs)
+                log_i("MQTT -->> %s disconnected (%fs)", _mqttUri, millis() / 1000.0);
             break;
         case MQTT_EVENT_ERROR:
             printError(event->error_handle);

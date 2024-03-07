@@ -51,8 +51,7 @@ void onMqttConnect(esp_mqtt_client_handle_t client)
     }
 }
 
-esp_err_t handleMQTT(esp_mqtt_event_handle_t event)
-{
-    mqttClient.onEventCallback(event);
-    return ESP_OK;
+void handleMQTT(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data){
+  auto *event = static_cast<esp_mqtt_event_handle_t>(event_data);
+  mqttClient.onEventCallback(event);
 }
