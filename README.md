@@ -1,5 +1,5 @@
-[![main CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml/badge.svg)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml)
-[![next CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml/badge.svg)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml)
+[![main CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml/badge.svg?branch=main)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml)
+[![next CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml/badge.svg?branch=main)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml)
 
 
 # ESP32MQTTClient
