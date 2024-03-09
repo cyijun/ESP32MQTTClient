@@ -1,4 +1,6 @@
-[![Arduino Library CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/arduinoci.yml/badge.svg)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/arduinoci.yml)
+[![Arduino Library CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml/badge.svg)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml)
+[![Arduino Library CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml/badge.svg)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml)
+
 
 # ESP32MQTTClient
 

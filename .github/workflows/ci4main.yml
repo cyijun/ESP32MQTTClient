@@ -20,24 +20,8 @@ jobs:
            repository: cyijun/ci-arduino
            path: ci
   
-      - name: main:pre-install
+      - name: pre-install
         run: bash ci/actions_install.sh
   
-      - name: main:build test
-        run: python3 ci/build_platform.py esp32
-
-      - name: Check out branch next
-        uses: actions/checkout@v4
-        with:
-          ref: next
-
-      - uses: actions/checkout@v4
-        with:
-          repository: adafruit/ci-arduino
-          path: ci
-            
-      - name: next:pre-install
-        run: bash ci/actions_install.sh
-    
-      - name: next:build test
+      - name: build test
         run: python3 ci/build_platform.py esp32
