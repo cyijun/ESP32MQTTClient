@@ -1,6 +1,12 @@
-name: Arduino Library CI
+name: main CI
 
-on: [pull_request, push]
+on: 
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
 
 jobs:
   build:
