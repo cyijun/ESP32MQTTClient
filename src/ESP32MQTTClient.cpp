@@ -42,20 +42,19 @@ void ESP32MQTTClient::setTaskPrio(int prio)
     _mqtt_config.task_prio = prio;
 }
 
-void ESP32MQTTClient::setClientCert(const char * clientCert)
+void ESP32MQTTClient::setClientCert(const char *clientCert)
 {
-	 _mqtt_config.client_cert_pem = clientCert;
+    _mqtt_config.client_cert_pem = clientCert;
 }
 
-void ESP32MQTTClient::setCaCert(const char * caCert)
+void ESP32MQTTClient::setCaCert(const char *caCert)
 {
-	 _mqtt_config.cert_pem = caCert;
+    _mqtt_config.cert_pem = caCert;
 }
 
-void ESP32MQTTClient::setKey(const char * clientKey)
+void ESP32MQTTClient::setKey(const char *clientKey)
 {
-	_mqtt_config.client_key_pem = clientKey;
-		
+    _mqtt_config.client_key_pem = clientKey;
 }
 // =============== Public functions for interaction with thus lib =================
 
@@ -276,11 +275,14 @@ bool ESP32MQTTClient::loopStart()
         _mqtt_config.client_id = _mqttClientName;
         _mqtt_config.username = _mqttUsername;
         _mqtt_config.password = _mqttPassword;
-        _mqtt_config.lwt_topic = _mqttLastWillTopic;
-        _mqtt_config.lwt_msg = _mqttLastWillMessage;
-        _mqtt_config.lwt_qos = _mqttLastWillQos;
-        _mqtt_config.lwt_retain = _mqttLastWillRetain;
-        _mqtt_config.lwt_msg_len = strlen(_mqttLastWillMessage);
+        if (_mqttLastWillTopic != nullptr)
+        {
+            _mqtt_config.lwt_topic = _mqttLastWillTopic;
+            _mqtt_config.lwt_msg = _mqttLastWillMessage;
+            _mqtt_config.lwt_qos = _mqttLastWillQos;
+            _mqtt_config.lwt_retain = _mqttLastWillRetain;
+            _mqtt_config.lwt_msg_len = strlen(_mqttLastWillMessage);
+        }
         _mqtt_config.disable_clean_session = _disableMQTTCleanSession;
         _mqtt_config.out_buffer_size = _mqttMaxOutPacketSize;
         _mqtt_config.buffer_size = _mqttMaxInPacketSize;
@@ -365,11 +367,14 @@ void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, char *payload
 
     // Second, we add the string termination code at the end of the payload and we convert it to a String object
     String payloadStr;
-    if (payload) {
-      payload[strTerminationPos] = '\0';
-      payloadStr=String(payload);
-    } else {
-        payloadStr="";
+    if (payload)
+    {
+        payload[strTerminationPos] = '\0';
+        payloadStr = String(payload);
+    }
+    else
+    {
+        payloadStr = "";
     }
     String topicStr(topic);
 
@@ -398,18 +403,22 @@ void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
         switch (event->event_id)
         {
         case MQTT_EVENT_CONNECTED:
+            ESP_LOGI("ESP32MQTTClient", "MQTT_EVENT_CONNECTED");
             log_i("onMqttConnect");
             setConnectionState(true);
             onMqttConnect(_mqtt_client);
             break;
         case MQTT_EVENT_DATA:
+            ESP_LOGI("ESP32MQTTClient", "MQTT_EVENT_DATA");
             onMessageReceivedCallback(String(event->topic).substring(0, event->topic_len).c_str(), event->data, event->data_len);
             break;
         case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI("ESP32MQTTClient", "MQTT_EVENT_DISCONNECTED");
             setConnectionState(false);
             log_i("%s disconnected (%fs)", _mqttUri, millis() / 1000.0);
             break;
         case MQTT_EVENT_ERROR:
+            ESP_LOGI("ESP32MQTTClient", "MQTT_EVENT_ERROR");
             printError(event->error_handle);
             break;
         default:
