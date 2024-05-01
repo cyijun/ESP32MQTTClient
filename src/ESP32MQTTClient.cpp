@@ -41,20 +41,19 @@ void ESP32MQTTClient::setTaskPrio(int prio)
     _mqtt_config.task.priority = prio;
 }
 
-void ESP32MQTTClient::setClientCert(const char * clientCert)
+void ESP32MQTTClient::setClientCert(const char *clientCert)
 {
-	 _mqtt_config.credentials.authentication.certificate = clientCert;
+    _mqtt_config.credentials.authentication.certificate = clientCert;
 }
 
-void ESP32MQTTClient::setCaCert(const char * caCert)
+void ESP32MQTTClient::setCaCert(const char *caCert)
 {
-	 _mqtt_config.broker.verification.certificate = caCert;
+    _mqtt_config.broker.verification.certificate = caCert;
 }
 
-void ESP32MQTTClient::setKey(const char * clientKey)
+void ESP32MQTTClient::setKey(const char *clientKey)
 {
-	_mqtt_config.credentials.authentication.key = clientKey;
-		
+    _mqtt_config.credentials.authentication.key = clientKey;
 }
 // =============== Public functions for interaction with thus lib =================
 
@@ -275,11 +274,14 @@ bool ESP32MQTTClient::loopStart()
         _mqtt_config.credentials.client_id = _mqttClientName;
         _mqtt_config.credentials.username = _mqttUsername;
         _mqtt_config.credentials.authentication.password = _mqttPassword;
-        _mqtt_config.session.last_will.topic = _mqttLastWillTopic;
-        _mqtt_config.session.last_will.msg = _mqttLastWillMessage;
-        _mqtt_config.session.last_will.qos = _mqttLastWillQos;
-        _mqtt_config.session.last_will.retain = _mqttLastWillRetain;
-        _mqtt_config.session.last_will.msg_len = strlen(_mqttLastWillMessage);
+        if (_mqttLastWillTopic != nullptr)
+        {
+            _mqtt_config.session.last_will.topic = _mqttLastWillTopic;
+            _mqtt_config.session.last_will.msg = _mqttLastWillMessage;
+            _mqtt_config.session.last_will.qos = _mqttLastWillQos;
+            _mqtt_config.session.last_will.retain = _mqttLastWillRetain;
+            _mqtt_config.session.last_will.msg_len = strlen(_mqttLastWillMessage);
+        }
         _mqtt_config.session.disable_clean_session = _disableMQTTCleanSession;
         _mqtt_config.buffer.out_size = _mqttMaxOutPacketSize;
         _mqtt_config.buffer.size = _mqttMaxInPacketSize;
@@ -365,11 +367,14 @@ void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, char *payload
 
     // Second, we add the string termination code at the end of the payload and we convert it to a String object
     String payloadStr;
-    if (payload) {
-      payload[strTerminationPos] = '\0';
-      payloadStr=String(payload);
-    } else {
-        payloadStr="";
+    if (payload)
+    {
+        payload[strTerminationPos] = '\0';
+        payloadStr = String(payload);
+    }
+    else
+    {
+        payloadStr = "";
     }
     String topicStr(topic);
 
@@ -398,19 +403,19 @@ void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
         switch (event->event_id)
         {
         case MQTT_EVENT_CONNECTED:
-		    if (_enableSerialLogs)
+            if (_enableSerialLogs)
                 log_i("MQTT -->> onMqttConnect");
             setConnectionState(true);
             onMqttConnect(_mqtt_client);
             break;
         case MQTT_EVENT_DATA:
-		    if (_enableSerialLogs)
+            if (_enableSerialLogs)
                 log_i("MQTT -->> onMqttEventData");
             onMessageReceivedCallback(String(event->topic).substring(0, event->topic_len).c_str(), event->data, event->data_len);
             break;
         case MQTT_EVENT_DISCONNECTED:
             setConnectionState(false);
-			if (_enableSerialLogs)
+            if (_enableSerialLogs)
                 log_i("MQTT -->> %s disconnected (%fs)", _mqttUri, millis() / 1000.0);
             break;
         case MQTT_EVENT_ERROR:

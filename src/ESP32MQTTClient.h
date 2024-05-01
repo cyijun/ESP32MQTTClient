@@ -97,10 +97,19 @@ public:
 
     inline void setURL(const char *url, const uint16_t port, const char *username = "", const char *password = "")
     { // Allow setting the MQTT info manually (must be done in setup())
-        char *uri=(char *)malloc(200);
-        sprintf(uri,"mqtt://%s:%u", url, port);
+        char *uri = (char *)malloc(200);
+        if (port == 8883)
+        {
+            sprintf(uri, "mqtts://%s:%u", url, port);
+        }
+        else
+        {
+            sprintf(uri, "mqtt://%s:%u", url, port);
+        }
         if (_enableSerialLogs)
+        {
             log_i("MQTT uri %s\n", uri);
+        }
         _mqttUri = uri;
         _mqttUsername = username;
         _mqttPassword = password;
