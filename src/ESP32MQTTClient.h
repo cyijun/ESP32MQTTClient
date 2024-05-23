@@ -7,8 +7,8 @@
 void onMqttConnect(esp_mqtt_client_handle_t client);
 esp_err_t handleMQTT(esp_mqtt_event_handle_t event);
 
-typedef std::function<void(const String &message)> MessageReceivedCallback;
-typedef std::function<void(const String &topicStr, const String &message)> MessageReceivedCallbackWithTopic;
+typedef std::function<void(const char* message, unsigned int message_len)> MessageReceivedCallback;
+typedef std::function<void(const char* topic, unsigned int topic_len,  char* message, unsigned int message_len)> MessageReceivedCallbackWithTopic;
 
 class ESP32MQTTClient
 {
@@ -36,7 +36,7 @@ private:
 
     struct TopicSubscriptionRecord
     {
-        String topic;
+        const char* topic;
         MessageReceivedCallback callback;
         MessageReceivedCallbackWithTopic callbackWithTopic;
     };
@@ -45,6 +45,10 @@ private:
     // General behaviour related
     bool _enableSerialLogs;
     bool _drasticResetOnConnectionFailures;
+
+    // string util
+    bool ends_with(const std::string & s, const std::string & suffix);
+    bool starts_with(const std::string & s, const std::string & prefix);
 
 public:
     ESP32MQTTClient(/* args */);
@@ -71,10 +75,10 @@ public:
     void setAutoReconnect(bool choice);
     bool setMaxOutPacketSize(const uint16_t size);
     bool setMaxPacketSize(const uint16_t size); // override the default value of 1024
-    bool publish(const String &topic, const String &payload, int qos = 0, bool retain = false);
-    bool subscribe(const String &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos = 0);
-    bool subscribe(const String &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos = 0);
-    bool unsubscribe(const String &topic);                                       // Unsubscribes from the topic, if it exists, and removes it from the CallbackList.
+    bool publish(const char* topic, const char* payload, uint8_t qos = 0, bool retain = false);
+    bool subscribe(const char* topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos = 0);
+    bool subscribe(const char* topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos = 0);
+    bool unsubscribe(const char* topic);                                       // Unsubscribes from the topic, if it exists, and removes it from the CallbackList.
     void setKeepAlive(uint16_t keepAliveSeconds);                                // Change the keepalive interval (15 seconds by default)
     inline void setMqttClientName(const char *name) { _mqttClientName = name; }; // Allow to set client name manually (must be done in setup(), else it will not work.)
     inline void setURI(const char *uri, const char *username = "", const char *password = "")
@@ -119,6 +123,6 @@ public:
     void onEventCallback(esp_mqtt_event_handle_t event);
 
 private:
-    void onMessageReceivedCallback(const char *topic, char *payload, unsigned int length);
-    bool mqttTopicMatch(const String &topic1, const String &topic2);
+    void onMessageReceivedCallback(const char *topic, unsigned int topic_len,char *payload, unsigned int payload_len);
+    bool mqttTopicMatch(const char* topic1, const char* topic2);
 };
