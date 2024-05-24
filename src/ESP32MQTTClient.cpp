@@ -4,8 +4,7 @@ ESP32MQTTClient::ESP32MQTTClient(/* args */)
 {
     _mqttConnected = false;
     _mqttMaxInPacketSize = 1024;
-    _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
-    _mqtt_config.event_handle = handleMQTT;
+    _mqttMaxOutPacketSize = 1024;
 }
 
 ESP32MQTTClient::~ESP32MQTTClient()
@@ -34,27 +33,47 @@ void ESP32MQTTClient::enableLastWillMessage(const char *topic, const char *messa
 
 void ESP32MQTTClient::disableAutoReconnect()
 {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     _mqtt_config.disable_auto_reconnect = true;
+#else // IDF CHECK
+    _mqtt_config.network.disable_auto_reconnect = true;
+#endif // IDF CHECK
 }
 
 void ESP32MQTTClient::setTaskPrio(int prio)
 {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     _mqtt_config.task_prio = prio;
+#else  // IDF CHECK
+    _mqtt_config.task.priority = prio;
+#endif // IDF CHECK
 }
 
 void ESP32MQTTClient::setClientCert(const char *clientCert)
 {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     _mqtt_config.client_cert_pem = clientCert;
+#else  // IDF CHECK
+    _mqtt_config.credentials.authentication.certificate = clientCert;
+#endif // IDF CHECK
 }
 
 void ESP32MQTTClient::setCaCert(const char *caCert)
 {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     _mqtt_config.cert_pem = caCert;
+#else  // IDF CHECK
+    _mqtt_config.broker.verification.certificate = caCert;
+#endif // IDF CHECK
 }
 
 void ESP32MQTTClient::setKey(const char *clientKey)
 {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     _mqtt_config.client_key_pem = clientKey;
+#else  // IDF CHECK
+    _mqtt_config.credentials.authentication.key = clientKey;
+#endif // IDF CHECK
 }
 // =============== Public functions for interaction with thus lib =================
 
@@ -187,7 +206,11 @@ bool ESP32MQTTClient::unsubscribe(const char* topic)
 
 void ESP32MQTTClient::setKeepAlive(uint16_t keepAliveSeconds)
 {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
     _mqtt_config.keepalive = keepAliveSeconds;
+#else  // IDF CHECK
+    _mqtt_config.session.keepalive = keepAliveSeconds;
+#endif // IDF CHECK
 }
 
 // ================== Private functions ====================-
@@ -270,7 +293,8 @@ bool ESP32MQTTClient::loopStart()
         }
 
         // explicitly set the server/port here in case they were not provided in the constructor
-
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+        // IDF 4.x
         _mqtt_config.uri = _mqttUri;
         _mqtt_config.client_id = _mqttClientName;
         _mqtt_config.username = _mqttUsername;
@@ -287,7 +311,29 @@ bool ESP32MQTTClient::loopStart()
         _mqtt_config.out_buffer_size = _mqttMaxOutPacketSize;
         _mqtt_config.buffer_size = _mqttMaxInPacketSize;
 
+        _mqtt_config.event_handle = handleMQTT;
         _mqtt_client = esp_mqtt_client_init(&_mqtt_config);
+#else  // IDF CHECK
+       // IDF 5.x
+        _mqtt_config.broker.address.uri = _mqttUri;
+        _mqtt_config.credentials.client_id = _mqttClientName;
+        _mqtt_config.credentials.username = _mqttUsername;
+        _mqtt_config.credentials.authentication.password = _mqttPassword;
+        if (_mqttLastWillTopic != nullptr)
+        {
+            _mqtt_config.session.last_will.topic = _mqttLastWillTopic;
+            _mqtt_config.session.last_will.msg = _mqttLastWillMessage;
+            _mqtt_config.session.last_will.qos = _mqttLastWillQos;
+            _mqtt_config.session.last_will.retain = _mqttLastWillRetain;
+            _mqtt_config.session.last_will.msg_len = strlen(_mqttLastWillMessage);
+        }
+        _mqtt_config.session.disable_clean_session = _disableMQTTCleanSession;
+        _mqtt_config.buffer.out_size = _mqttMaxOutPacketSize;
+        _mqtt_config.buffer.size = _mqttMaxInPacketSize;
+
+        _mqtt_client = esp_mqtt_client_init(&_mqtt_config);
+        esp_mqtt_client_register_event(_mqtt_client, MQTT_EVENT_ANY, handleMQTT, this);
+#endif // IDF CHECK
         esp_mqtt_client_start(_mqtt_client);
     }
     else
