@@ -335,10 +335,14 @@ bool ESP32MQTTClient::mqttTopicMatch(const char *topic1, const char *topic2)
             result = true;
         }
         // free memory
-        delete topic1Str;
-        delete topic2Str;
-        delete t1a;
-        delete t1b;
+        topic1Str.clear();
+        topic1Str.shrink_to_fit();
+        topic2Str.clear();
+        topic2Str.shrink_to_fit();
+        t1a.clear();
+        t1a.shrink_to_fit();
+        t1b.clear();
+        t1b.shrink_to_fit();
     }
     else if (strchr(topic1, '+')) // using C string for speed
     {
@@ -360,10 +364,14 @@ bool ESP32MQTTClient::mqttTopicMatch(const char *topic1, const char *topic2)
             }
         }
         // free memory
-        delete topic1Str;
-        delete topic2Str;
-        delete t1a;
-        delete t1b;
+        topic1Str.clear();
+        topic1Str.shrink_to_fit();
+        topic2Str.clear();
+        topic2Str.shrink_to_fit();
+        t1a.clear();
+        t1a.shrink_to_fit();
+        t1b.clear();
+        t1b.shrink_to_fit();
     }
     else
     {
