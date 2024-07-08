@@ -4,8 +4,18 @@
 #include <Arduino.h>
 #include <mqtt_client.h>
 
-void onConnectionEstablishedCallback(esp_mqtt_client_handle_t client);
-esp_err_t handleMQTT(esp_mqtt_event_handle_t event);
+void onMqttConnect(esp_mqtt_client_handle_t client);
+/*
+ * @brief Event handler registered to receive MQTT events
+ *
+ *  This function is called by the MQTT client event loop.
+ *
+ * @param handler_args user data registered to the event.
+ * @param base Event base for the handler(always MQTT Base).
+ * @param event_id The id for the received event.
+ * @param event_data The data for the event, esp_mqtt_event_handle_t.
+ */
+void handleMQTT(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
 typedef std::function<void(const String &message)> MessageReceivedCallback;
 typedef std::function<void(const String &topicStr, const String &message)> MessageReceivedCallbackWithTopic;
@@ -80,6 +90,17 @@ public:
     inline void setMqttClientName(const char *name) { _mqttClientName = name; }; // Allow to set client name manually (must be done in setup(), else it will not work.)
     inline void setURI(const char *uri, const char *username = "", const char *password = "")
     { // Allow setting the MQTT info manually (must be done in setup())
+        _mqttUri = uri;
+        _mqttUsername = username;
+        _mqttPassword = password;
+    };
+
+    inline void setURL(const char *url, const uint16_t port, const char *username = "", const char *password = "")
+    { // Allow setting the MQTT info manually (must be done in setup())
+        char *uri=(char *)malloc(200);
+        sprintf(uri,"mqtt://%s:%u", url, port);
+        if (_enableSerialLogs)
+            log_i("MQTT uri %s\n", uri);
         _mqttUri = uri;
         _mqttUsername = username;
         _mqttPassword = password;
