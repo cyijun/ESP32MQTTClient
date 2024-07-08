@@ -1,8 +1,7 @@
+# ESP32MQTTClient
+
 [![main CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml/badge.svg?branch=main)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4main.yml)
 [![next CI](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml/badge.svg?branch=main)](https://github.com/cyijun/ESP32MQTTClient/actions/workflows/ci4next.yml)
-
-
-# ESP32MQTTClient
 
 A thread-safe MQTT client for Arduino ESP32xx.
 
