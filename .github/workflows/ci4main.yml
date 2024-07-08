@@ -1,34 +1,36 @@
 name: main CI
 
 on: 
-  push:
-    branches:
-    - main
-  pull_request:
-    branches:
-    - main
-  workflow_dispatch:
+    push:
+      branches:
+      - main
+    pull_request:
+      branches:
+      - main
+    workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Check out branch main
-        uses: actions/checkout@v4
+    build:
+      runs-on: ubuntu-latest
       
-      - uses: actions/checkout@v4
-        with:
-           repository: cyijun/ci-arduino
-           path: ci
+      steps:
+        - name: Setup Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.x'
   
-      - name: pre-install
-        run: bash ci/actions_install.sh
+        - name: Check out branch main
+          uses: actions/checkout@v4
+          with:
+            ref: main
   
-      - name: build test
-        run: python3 ci/build_platform.py esp32
+        - uses: actions/checkout@v4
+          with:
+            repository: adafruit/ci-arduino
+            path: ci
+              
+        - name: pre-install
+          run: bash ci/actions_install.sh
+      
+        - name: build test
+          run: python3 ci/build_platform.py esp32
