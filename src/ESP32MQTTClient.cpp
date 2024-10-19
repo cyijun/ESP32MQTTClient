@@ -5,6 +5,8 @@ ESP32MQTTClient::ESP32MQTTClient(/* args */)
     _mqttConnected = false;
     _mqttMaxInPacketSize = 1024;
     _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
+    _mqttLastWillTopic = nullptr;
+    _mqttLastWillMessage = nullptr;
 }
 
 ESP32MQTTClient::~ESP32MQTTClient()
