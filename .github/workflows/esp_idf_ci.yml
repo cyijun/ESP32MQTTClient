@@ -15,18 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        idf_version: ['v4.4.7', 'v5.3']
+        idf_version: ['v4.4.6', 'v5.3']
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Set up ESP-IDF
-        uses: espressif/setup-idf@v2
         with:
-          idf-version: ${{ matrix.idf_version }}
-          recursive: true
+          path: ${{ github.workspace }}/app
 
-      - name: Build the example
-        working-directory: examples/CppEspIdf
-        run: idf.py build 
+      - name: Build with ESP-IDF ${{ matrix.idf_version }}
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: ${{ matrix.idf_version }}
+          target: esp32
+          path: app/examples/CppEspIdf
+          command: |
+            apt-get update && apt-get install -y python3-venv
+            idf.py build
