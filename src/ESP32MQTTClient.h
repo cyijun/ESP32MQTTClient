@@ -4,6 +4,7 @@
 #include <string>
 #include <mqtt_client.h>
 #include <functional>
+#include "esp_log.h"
 
 void onMqttConnect(esp_mqtt_client_handle_t client);
 /*
@@ -109,7 +110,7 @@ public:
         }
         if (_enableSerialLogs)
         {
-            log_i("MQTT uri %s\n", uri);
+            ESP_LOGI("ESP32MQTTClient", "MQTT uri %s", uri);
         }
         _mqttUri = uri;
         _mqttUsername = username;
