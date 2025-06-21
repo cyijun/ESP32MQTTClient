@@ -44,11 +44,11 @@ void onMqttConnect(esp_mqtt_client_handle_t client)
 {
     if (mqttClient.isMyTurn(client)) // can be omitted if only one client
     {
-        mqttClient.subscribe(subscribeTopic, [](const String &payload)
+        mqttClient.subscribe(subscribeTopic, [](const std::string &payload)
                              { log_i("%s: %s", subscribeTopic, payload.c_str()); });
 
-        mqttClient.subscribe("bar/#", [](const String &topic, const String &payload)
-                             { log_i("%s: %s", topic, payload.c_str()); });
+        mqttClient.subscribe("bar/#", [](const std::string &topic, const std::string &payload)
+                             { log_i("%s: %s", topic.c_str(), payload.c_str()); });
     }
 }
 
