@@ -5,6 +5,8 @@ ESP32MQTTClient::ESP32MQTTClient(/* args */)
     _mqttConnected = false;
     _mqttMaxInPacketSize = 1024;
     _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
+    _mqttLastWillTopic = nullptr;
+    _mqttLastWillMessage = nullptr;
 }
 
 ESP32MQTTClient::~ESP32MQTTClient()
@@ -377,7 +379,6 @@ void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, char *payload
         payloadStr = "";
     }
     String topicStr(topic);
-
     // Logging
     if (_enableSerialLogs)
         log_i("MQTT >> [%s] %s\n", topic, payloadStr.c_str());

@@ -63,7 +63,7 @@ public:
 
     // Optional functionality
     void enableDebuggingMessages(const bool enabled = true);                                       // Allow to display useful debugging messages. Can be set to false to disable them during program execution
-    void disablePersistence();                                                                 // Tell the broker to establish a persistent connection. Disabled by default. Must be called before the first loop() execution
+    void disablePersistence();                                                                 // Do not request a persistent connection. Connections are persistent by default. Must be called before the first loop() execution
     void enableLastWillMessage(const char *topic, const char *message, const bool retain = false); // Must be set before the first loop() call.
     void enableDrasticResetOnConnectionFailures() { _drasticResetOnConnectionFailures = true; }    // Can be usefull in special cases where the ESP board hang and need resetting (#59)
 
