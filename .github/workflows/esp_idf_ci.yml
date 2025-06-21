@@ -11,7 +11,7 @@ on:
 
 jobs:
   build_esp_idf_example:
-    name: Build CppEspIdf example with ESP-IDF v${{ matrix.idf_version }}
+    name: Build CppEspIdf example with ESP-IDF ${{ matrix.idf_version }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
