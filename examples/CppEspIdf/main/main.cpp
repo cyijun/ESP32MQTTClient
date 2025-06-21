@@ -129,6 +129,9 @@ extern "C" void app_main(void)
     mqttClient.setURI(MQTT_URI);
     mqttClient.enableLastWillMessage("lwt", "I am going offline");
     mqttClient.setKeepAlive(30);
+    mqttClient.setOnMessageCallback([](const std::string &topic, const std::string &payload) {
+        ESP_LOGI(TAG, "Global callback: %s: %s", topic.c_str(), payload.c_str());
+    });
     
     xTaskCreate(&main_task, "main_task", 4096, NULL, 5, NULL);
 }

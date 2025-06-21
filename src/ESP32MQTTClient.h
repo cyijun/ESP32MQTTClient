@@ -33,6 +33,7 @@ class ESP32MQTTClient
 private:
     esp_mqtt_client_config_t _mqtt_config; // C so different naming
     esp_mqtt_client_handle_t _mqtt_client;
+    MessageReceivedCallbackWithTopic _globalMessageReceivedCallback = nullptr;
 	
 
     // MQTT related
@@ -85,7 +86,7 @@ public:
 	void setClientCert(const char * clientCert);
 	void setCaCert(const char * caCert);
 	void setKey(const char * clientKey);
-    void setOnMessageCallback();
+    void setOnMessageCallback(MessageReceivedCallbackWithTopic callback);
     void setConnectionState(bool state);
     void setAutoReconnect(bool choice);
     bool setMaxOutPacketSize(const uint16_t size);

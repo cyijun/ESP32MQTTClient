@@ -25,6 +25,9 @@ void setup()
     mqttClient.setURI(server);
     mqttClient.enableLastWillMessage("lwt", "I am going offline");
     mqttClient.setKeepAlive(30);
+    mqttClient.setOnMessageCallback([](const std::string &topic, const std::string &payload) {
+        log_i("Global callback: %s: %s", topic.c_str(), payload.c_str());
+    });
     WiFi.begin(ssid, pass);
     WiFi.setHostname("c3test");
     mqttClient.loopStart();
