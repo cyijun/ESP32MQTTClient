@@ -1,0 +1,32 @@
+name: ESP-IDF CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build_esp_idf_example:
+    name: Build CppEspIdf example with ESP-IDF v${{ matrix.idf_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        idf_version: ['v4.4.7', 'v5.3']
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up ESP-IDF
+        uses: espressif/setup-idf@v2
+        with:
+          idf-version: ${{ matrix.idf_version }}
+          recursive: true
+
+      - name: Build the example
+        working-directory: examples/CppEspIdf
+        run: idf.py build 
