@@ -35,7 +35,7 @@ int pubCount = 0;
 void loop()
 {
 
-    String msg = "Hello: " + String(pubCount++);
+    std::string msg = "Hello: " + std::to_string(pubCount++);
     mqttClient.publish(publishTopic, msg, 0, false);
     delay(2000);
 }
