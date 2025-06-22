@@ -38,8 +38,6 @@ private:
 
     // MQTT related
     bool _mqttConnected;
-    unsigned long _nextMqttConnectionAttemptMillis;
-    unsigned int _mqttReconnectionAttemptDelay;
     const char *_mqttUri;
     const char *_mqttUsername;
     const char *_mqttPassword;
@@ -49,7 +47,6 @@ private:
     char *_mqttLastWillMessage;
     int _mqttLastWillQos;
     bool _mqttLastWillRetain;
-    unsigned int _failedMQTTConnectionAttemptCount;
 
     int _mqttMaxInPacketSize;
     int _mqttMaxOutPacketSize;
@@ -131,8 +128,6 @@ public:
     inline const char *getURI() { return _mqttUri; };
 
     void printError(esp_mqtt_error_codes_t *error_handle);
-
-    // Default to onConnectionEstablished, you might want to override this for special cases like two MQTT connections in the same sketch
     
     bool loopStart();
 

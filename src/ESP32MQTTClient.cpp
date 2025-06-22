@@ -301,15 +301,16 @@ void ESP32MQTTClient::printError(esp_mqtt_error_codes_t *error_handle)
 bool ESP32MQTTClient::loopStart()
 {
     bool success = false;
+    esp_err_t err = ESP_OK;
 
     if (_mqttUri != nullptr)
     {
         if (_enableSerialLogs)
         {
-            // if (_mqttUsername)
-            //     ESP_LOGW(TAG, Connecting to broker \"%s\" with client name \"%s\" and username \"%s\" ... (%fs)", _mqttUri, _mqttClientName, _mqttUsername, millis() / 1000.0);
-            // else
-            //     ESP_LOGW(TAG, Connecting to broker \"%s\" with client name \"%s\" ... (%fs)", _mqttUri, _mqttClientName, millis() / 1000.0);
+            if (_mqttUsername)
+                ESP_LOGW(TAG, "Connecting to broker %s with client name %s and username %s ... (%lus)", _mqttUri, (_mqttClientName ? _mqttClientName : ""), _mqttUsername, (unsigned long)(esp_timer_get_time() / 1000000));
+            else
+                ESP_LOGW(TAG, "Connecting to broker %s with client name %s ... (%lus)", _mqttUri, (_mqttClientName ? _mqttClientName : ""), (unsigned long)(esp_timer_get_time() / 1000000));
         }
 
         // explicitly set the server/port here in case they were not provided in the constructor
@@ -352,25 +353,33 @@ bool ESP32MQTTClient::loopStart()
         _mqtt_config.buffer.size = _mqttMaxInPacketSize;
 
         _mqtt_client = esp_mqtt_client_init(&_mqtt_config);
-        esp_mqtt_client_register_event(_mqtt_client, MQTT_EVENT_ANY, handleMQTT, this);
+        err = esp_mqtt_client_register_event(_mqtt_client, MQTT_EVENT_ANY, handleMQTT, this);
 #endif // IDF CHECK
-        esp_mqtt_client_start(_mqtt_client);
+        if (_mqtt_client != nullptr && err == ESP_OK)
+        {
+            err = esp_mqtt_client_start(_mqtt_client);
+            success = (err == ESP_OK);
+        }
+        else
+        {
+            success = false;
+        }
     }
     else
     {
         if (_enableSerialLogs)
-            ESP_LOGW(TAG, "MQTT: Broker server ip is not set, not connecting (%lus)", (unsigned long)(esp_timer_get_time() / 1000000));
+            ESP_LOGW(TAG, "Broker server ip is not set, not connecting (%lus)", (unsigned long)(esp_timer_get_time() / 1000000));
         success = false;
     }
 
     if (_enableSerialLogs)
     {
         if (success)
-            ESP_LOGI(TAG, " - ok. (%lus)", (unsigned long)(esp_timer_get_time() / 1000000));
+            ESP_LOGI(TAG, "Connection ok. (%lus)", (unsigned long)(esp_timer_get_time() / 1000000));
         else
         {
 
-            ESP_LOGI(TAG, "MQTT: Retrying to connect in %i seconds.", _mqttReconnectionAttemptDelay / 1000);
+            ESP_LOGE(TAG, "Connection failed, error code: %d", err);
         }
     }
 
