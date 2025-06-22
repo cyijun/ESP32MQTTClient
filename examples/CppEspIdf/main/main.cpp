@@ -34,8 +34,15 @@ static void ip_event_handler(void* arg, esp_event_base_t event_base,
 {
      if (event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        mqttClient.loopStart();
+        ESP_LOGI(TAG, "got ip: " IPSTR, IP2STR(&event->ip_info.ip));
+        if (mqttClient.loopStart())
+        {
+            ESP_LOGW(TAG, "mqttClient Connected");
+        }
+        else
+        {
+            ESP_LOGW(TAG, "mqttClient failed to start");
+        }
     }
 }
 
