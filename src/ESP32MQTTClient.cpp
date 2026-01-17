@@ -1,21 +1,27 @@
 #include "ESP32MQTTClient.h"
 #include "esp_timer.h"
+#include "esp_system.h"
 
 static const char *TAG = "ESP32MQTTClient";
 
 ESP32MQTTClient::ESP32MQTTClient(/* args */)
 {
     _mqttConnected = false;
-    _mqttMaxInPacketSize = 1024;
+    _mqttMaxInPacketSize = DEFAULT_PACKET_SIZE;
     _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
     _mqttLastWillTopic = nullptr;
     _mqttLastWillMessage = nullptr;
+    _mqttUriBuffer = nullptr;
     _globalMessageReceivedCallback = nullptr;
 }
 
 ESP32MQTTClient::~ESP32MQTTClient()
 {
     esp_mqtt_client_destroy(_mqtt_client);
+    if (_mqttUriBuffer != nullptr) {
+        free(_mqttUriBuffer);
+        _mqttUriBuffer = nullptr;
+    }
 }
 
 // =============== Configuration functions, most of them must be called before the first loop() call ==============
@@ -39,47 +45,27 @@ void ESP32MQTTClient::enableLastWillMessage(const char *topic, const char *messa
 
 void ESP32MQTTClient::disableAutoReconnect()
 {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    _mqtt_config.disable_auto_reconnect = true;
-#else // IDF CHECK
-    _mqtt_config.network.disable_auto_reconnect = true;
-#endif // IDF CHECK
+    setConfigAutoReconnect(true);
 }
 
 void ESP32MQTTClient::setTaskPrio(int prio)
 {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    _mqtt_config.task_prio = prio;
-#else  // IDF CHECK
-    _mqtt_config.task.priority = prio;
-#endif // IDF CHECK
+    setConfigTaskPrio(prio);
 }
 
 void ESP32MQTTClient::setClientCert(const char *clientCert)
 {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    _mqtt_config.client_cert_pem = clientCert;
-#else  // IDF CHECK
-    _mqtt_config.credentials.authentication.certificate = clientCert;
-#endif // IDF CHECK
+    setConfigClientCert(clientCert);
 }
 
 void ESP32MQTTClient::setCaCert(const char *caCert)
 {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    _mqtt_config.cert_pem = caCert;
-#else  // IDF CHECK
-    _mqtt_config.broker.verification.certificate = caCert;
-#endif // IDF CHECK
+    setConfigCaCert(caCert);
 }
 
 void ESP32MQTTClient::setKey(const char *clientKey)
 {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    _mqtt_config.client_key_pem = clientKey;
-#else  // IDF CHECK
-    _mqtt_config.credentials.authentication.key = clientKey;
-#endif // IDF CHECK
+    setConfigClientKey(clientKey);
 }
 // =============== Public functions for interaction with thus lib =================
 
@@ -95,11 +81,7 @@ void ESP32MQTTClient::setConnectionState(bool state)
 
 void ESP32MQTTClient::setAutoReconnect(bool choice)
 {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    _mqtt_config.disable_auto_reconnect = !choice;
-#else // IDF CHECK
-    _mqtt_config.network.disable_auto_reconnect = !choice;
-#endif // IDF CHECK
+    setConfigAutoReconnect(!choice);
 }
 
 bool ESP32MQTTClient::setMaxOutPacketSize(const uint16_t size)
@@ -226,11 +208,7 @@ bool ESP32MQTTClient::unsubscribe(const std::string &topic)
 
 void ESP32MQTTClient::setKeepAlive(uint16_t keepAliveSeconds)
 {
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-    _mqtt_config.keepalive = keepAliveSeconds;
-#else  // IDF CHECK
-    _mqtt_config.session.keepalive = keepAliveSeconds;
-#endif // IDF CHECK
+    setConfigKeepAlive(keepAliveSeconds);
 }
 
 // ================== Private functions ====================-
@@ -297,6 +275,128 @@ void ESP32MQTTClient::printError(esp_mqtt_error_codes_t *error_handle)
     }
 }
 
+// ================== ESP-IDF Version Adaptation Helper Methods ====================
+
+void ESP32MQTTClient::setConfigUri(const char *uri)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.uri = uri;
+#else
+    _mqtt_config.broker.address.uri = uri;
+#endif
+}
+
+void ESP32MQTTClient::setConfigClientId(const char *clientId)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.client_id = clientId;
+#else
+    _mqtt_config.credentials.client_id = clientId;
+#endif
+}
+
+void ESP32MQTTClient::setConfigUsername(const char *username)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.username = username;
+#else
+    _mqtt_config.credentials.username = username;
+#endif
+}
+
+void ESP32MQTTClient::setConfigPassword(const char *password)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.password = password;
+#else
+    _mqtt_config.credentials.authentication.password = password;
+#endif
+}
+
+void ESP32MQTTClient::setConfigAutoReconnect(bool disable)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.disable_auto_reconnect = disable;
+#else
+    _mqtt_config.network.disable_auto_reconnect = disable;
+#endif
+}
+
+void ESP32MQTTClient::setConfigTaskPrio(int prio)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.task_prio = prio;
+#else
+    _mqtt_config.task.priority = prio;
+#endif
+}
+
+void ESP32MQTTClient::setConfigClientCert(const char *cert)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.client_cert_pem = cert;
+#else
+    _mqtt_config.credentials.authentication.certificate = cert;
+#endif
+}
+
+void ESP32MQTTClient::setConfigCaCert(const char *cert)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.cert_pem = cert;
+#else
+    _mqtt_config.broker.verification.certificate = cert;
+#endif
+}
+
+void ESP32MQTTClient::setConfigClientKey(const char *key)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.client_key_pem = key;
+#else
+    _mqtt_config.credentials.authentication.key = key;
+#endif
+}
+
+void ESP32MQTTClient::setConfigKeepAlive(uint16_t seconds)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.keepalive = seconds;
+#else
+    _mqtt_config.session.keepalive = seconds;
+#endif
+}
+
+void ESP32MQTTClient::setConfigLwt(const char *topic, const char *msg, int qos, bool retain)
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.lwt_topic = topic;
+    _mqtt_config.lwt_msg = msg;
+    _mqtt_config.lwt_qos = qos;
+    _mqtt_config.lwt_retain = retain;
+    _mqtt_config.lwt_msg_len = strlen(msg);
+#else
+    _mqtt_config.session.last_will.topic = topic;
+    _mqtt_config.session.last_will.msg = msg;
+    _mqtt_config.session.last_will.qos = qos;
+    _mqtt_config.session.last_will.retain = retain;
+    _mqtt_config.session.last_will.msg_len = strlen(msg);
+#endif
+}
+
+void ESP32MQTTClient::setConfigSessionSettings()
+{
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+    _mqtt_config.disable_clean_session = _disableMQTTCleanSession;
+    _mqtt_config.out_buffer_size = _mqttMaxOutPacketSize;
+    _mqtt_config.buffer_size = _mqttMaxInPacketSize;
+#else
+    _mqtt_config.session.disable_clean_session = _disableMQTTCleanSession;
+    _mqtt_config.buffer.out_size = _mqttMaxOutPacketSize;
+    _mqtt_config.buffer.size = _mqttMaxInPacketSize;
+#endif
+}
+
 // Try to connect to the MQTT broker and return True if the connection is successfull (blocking)
 bool ESP32MQTTClient::loopStart()
 {
@@ -314,44 +414,26 @@ bool ESP32MQTTClient::loopStart()
         }
 
         // explicitly set the server/port here in case they were not provided in the constructor
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
-        // IDF 4.x
-        _mqtt_config.uri = _mqttUri;
-        _mqtt_config.client_id = _mqttClientName;
-        _mqtt_config.username = _mqttUsername;
-        _mqtt_config.password = _mqttPassword;
+        // Use helper methods to set configuration
+        setConfigUri(_mqttUri);
+        setConfigClientId(_mqttClientName);
+        setConfigUsername(_mqttUsername);
+        setConfigPassword(_mqttPassword);
+        
         if (_mqttLastWillTopic != nullptr)
         {
-            _mqtt_config.lwt_topic = _mqttLastWillTopic;
-            _mqtt_config.lwt_msg = _mqttLastWillMessage;
-            _mqtt_config.lwt_qos = _mqttLastWillQos;
-            _mqtt_config.lwt_retain = _mqttLastWillRetain;
-            _mqtt_config.lwt_msg_len = strlen(_mqttLastWillMessage);
+            setConfigLwt(_mqttLastWillTopic, _mqttLastWillMessage, 
+                         _mqttLastWillQos, _mqttLastWillRetain);
         }
-        _mqtt_config.disable_clean_session = _disableMQTTCleanSession;
-        _mqtt_config.out_buffer_size = _mqttMaxOutPacketSize;
-        _mqtt_config.buffer_size = _mqttMaxInPacketSize;
+        
+        setConfigSessionSettings();
 
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+        // IDF 4.x
         _mqtt_config.event_handle = handleMQTT;
         _mqtt_client = esp_mqtt_client_init(&_mqtt_config);
 #else  // IDF CHECK
        // IDF 5.x
-        _mqtt_config.broker.address.uri = _mqttUri;
-        _mqtt_config.credentials.client_id = _mqttClientName;
-        _mqtt_config.credentials.username = _mqttUsername;
-        _mqtt_config.credentials.authentication.password = _mqttPassword;
-        if (_mqttLastWillTopic != nullptr)
-        {
-            _mqtt_config.session.last_will.topic = _mqttLastWillTopic;
-            _mqtt_config.session.last_will.msg = _mqttLastWillMessage;
-            _mqtt_config.session.last_will.qos = _mqttLastWillQos;
-            _mqtt_config.session.last_will.retain = _mqttLastWillRetain;
-            _mqtt_config.session.last_will.msg_len = strlen(_mqttLastWillMessage);
-        }
-        _mqtt_config.session.disable_clean_session = _disableMQTTCleanSession;
-        _mqtt_config.buffer.out_size = _mqttMaxOutPacketSize;
-        _mqtt_config.buffer.size = _mqttMaxInPacketSize;
-
         _mqtt_client = esp_mqtt_client_init(&_mqtt_config);
         err = esp_mqtt_client_register_event(_mqtt_client, MQTT_EVENT_ANY, handleMQTT, this);
 #endif // IDF CHECK
@@ -427,37 +509,37 @@ bool ESP32MQTTClient::mqttTopicMatch(const std::string &topic1, const std::strin
 
 void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, char *payload, unsigned int length)
 {
-
-    // Convert the payload into a String
+    // Determine the actual payload length
     unsigned int strTerminationPos;
     if (strlen(topic) + length + 9 >= _mqttMaxInPacketSize)
     {
         strTerminationPos = length;
-
         if (_enableSerialLogs)
             ESP_LOGW(TAG, "MQTT! Your message may be truncated, please set setMaxPacketSize() to a higher value.");
     }
     else
-        strTerminationPos = length;
-
-    // Second, we add the string termination code at the end of the payload and we convert it to a String object
-
-
-    std::string payloadStr;
-    if (payload)
     {
-        payload[strTerminationPos] = '\0';
-        payloadStr = std::string(payload);
+        strTerminationPos = length;
+    }
+
+    // Create a copy of the payload, don't modify the original buffer
+    std::string payloadStr;
+    if (payload && length > 0)
+    {
+        payloadStr = std::string(payload, strTerminationPos);
     }
     else
     {
         payloadStr = "";
     }
+
     std::string topicStr(topic);
+
     // Logging
     if (_enableSerialLogs)
         ESP_LOGI(TAG, "MQTT >> [%s] %s", topic, payloadStr.c_str());
 
+    // Call global callback
     if (_globalMessageReceivedCallback) {
         _globalMessageReceivedCallback(topicStr, payloadStr);
     }
@@ -465,12 +547,12 @@ void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, char *payload
     // Send the message to subscribers
     for (std::size_t i = 0; i < _topicSubscriptionList.size(); i++)
     {
-        if (mqttTopicMatch(_topicSubscriptionList[i].topic, std::string(topic)))
+        if (mqttTopicMatch(_topicSubscriptionList[i].topic, topicStr))
         {
             if (_topicSubscriptionList[i].callback != nullptr)
-                _topicSubscriptionList[i].callback(payloadStr); // Call the callback
+                _topicSubscriptionList[i].callback(payloadStr);
             if (_topicSubscriptionList[i].callbackWithTopic != nullptr)
-                _topicSubscriptionList[i].callbackWithTopic(topicStr, payloadStr); // Call the callback
+                _topicSubscriptionList[i].callbackWithTopic(topicStr, payloadStr);
         }
     }
 }
@@ -502,6 +584,11 @@ void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
             setConnectionState(false);
             if (_enableSerialLogs)
                 ESP_LOGW(TAG, "MQTT -->> %s disconnected (%lus)", _mqttUri, (unsigned long)(esp_timer_get_time() / 1000000));
+            
+            if (_drasticResetOnConnectionFailures) {
+                ESP_LOGW(TAG, "Drastic reset triggered due to connection failure");
+                esp_restart();
+            }
             break;
         case MQTT_EVENT_ERROR:
             ESP_LOGI("ESP32MQTTClient", "MQTT_EVENT_ERROR");

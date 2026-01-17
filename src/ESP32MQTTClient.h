@@ -50,6 +50,7 @@ private:
 
     int _mqttMaxInPacketSize;
     int _mqttMaxOutPacketSize;
+    char *_mqttUriBuffer;  // Buffer for setURL allocated memory
 
     struct TopicSubscriptionRecord
     {
@@ -64,6 +65,10 @@ private:
     bool _drasticResetOnConnectionFailures;
 
 public:
+    // Constants
+    static constexpr uint16_t DEFAULT_PACKET_SIZE = 1024;
+    static constexpr uint16_t URI_BUFFER_SIZE = 200;
+
     ESP32MQTTClient(/* args */);
     ~ESP32MQTTClient();
 
@@ -103,20 +108,27 @@ public:
 
     inline void setURL(const char *url, const uint16_t port, const char *username = "", const char *password = "")
     { // Allow setting the MQTT info manually (must be done in setup())
-        char *uri = (char *)malloc(200);
+        // Free previous buffer if exists
+        if (_mqttUriBuffer != nullptr) {
+            free(_mqttUriBuffer);
+            _mqttUriBuffer = nullptr;
+        }
+        
+        // Allocate new buffer
+        _mqttUriBuffer = (char *)malloc(URI_BUFFER_SIZE);
         if (port == 8883)
         {
-            sprintf(uri, "mqtts://%s:%u", url, port);
+            sprintf(_mqttUriBuffer, "mqtts://%s:%u", url, port);
         }
         else
         {
-            sprintf(uri, "mqtt://%s:%u", url, port);
+            sprintf(_mqttUriBuffer, "mqtt://%s:%u", url, port);
         }
         if (_enableSerialLogs)
         {
-            ESP_LOGI("ESP32MQTTClient", "MQTT uri %s", uri);
+            ESP_LOGI("ESP32MQTTClient", "MQTT uri %s", _mqttUriBuffer);
         }
-        _mqttUri = uri;
+        _mqttUri = _mqttUriBuffer;
         _mqttUsername = username;
         _mqttPassword = password;
     };
@@ -134,6 +146,20 @@ public:
     void onEventCallback(esp_mqtt_event_handle_t event);
     
 private:
+    // ESP-IDF 版本适配辅助方法
+    void setConfigUri(const char *uri);
+    void setConfigClientId(const char *clientId);
+    void setConfigUsername(const char *username);
+    void setConfigPassword(const char *password);
+    void setConfigAutoReconnect(bool disable);
+    void setConfigTaskPrio(int prio);
+    void setConfigClientCert(const char *cert);
+    void setConfigCaCert(const char *cert);
+    void setConfigClientKey(const char *key);
+    void setConfigKeepAlive(uint16_t seconds);
+    void setConfigLwt(const char *topic, const char *msg, int qos, bool retain);
+    void setConfigSessionSettings();
+
     void onMessageReceivedCallback(const char *topic, char *payload, unsigned int length);
     bool mqttTopicMatch(const std::string &topic1, const std::string &topic2);
 };
