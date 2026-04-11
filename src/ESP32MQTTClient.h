@@ -118,11 +118,11 @@ public:
         _mqttUriBuffer = (char *)malloc(URI_BUFFER_SIZE);
         if (port == 8883)
         {
-            sprintf(_mqttUriBuffer, "mqtts://%s:%u", url, port);
+            snprintf(_mqttUriBuffer, URI_BUFFER_SIZE, "mqtts://%s:%u", url, port);
         }
         else
         {
-            sprintf(_mqttUriBuffer, "mqtt://%s:%u", url, port);
+            snprintf(_mqttUriBuffer, URI_BUFFER_SIZE, "mqtt://%s:%u", url, port);
         }
         if (_enableSerialLogs)
         {
