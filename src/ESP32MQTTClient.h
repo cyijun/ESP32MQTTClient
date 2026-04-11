@@ -111,6 +111,7 @@ public:
         if (_mqttUriBuffer != nullptr) {
             free(_mqttUriBuffer);
             _mqttUriBuffer = nullptr;
+            _mqttUri = nullptr;
         }
 
         if (url == nullptr) {
