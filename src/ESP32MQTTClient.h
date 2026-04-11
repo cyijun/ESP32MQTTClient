@@ -67,7 +67,6 @@ private:
 public:
     // Constants
     static constexpr uint16_t DEFAULT_PACKET_SIZE = 1024;
-    static constexpr uint16_t URI_BUFFER_SIZE = 200;
 
     ESP32MQTTClient(/* args */);
     ~ESP32MQTTClient();
@@ -113,17 +112,29 @@ public:
             free(_mqttUriBuffer);
             _mqttUriBuffer = nullptr;
         }
-        
-        // Allocate new buffer
-        _mqttUriBuffer = (char *)malloc(URI_BUFFER_SIZE);
-        if (port == 8883)
-        {
-            sprintf(_mqttUriBuffer, "mqtts://%s:%u", url, port);
+
+        if (url == nullptr) {
+            if (_enableSerialLogs) {
+                ESP_LOGE("ESP32MQTTClient", "URL is null");
+            }
+            return;
         }
-        else
-        {
-            sprintf(_mqttUriBuffer, "mqtt://%s:%u", url, port);
+
+        // Dynamically calculate required space: mqtt(s):// + url + :65535 + \0
+        size_t urlLen = strlen(url);
+        size_t needed = urlLen + 16;  // Enough for scheme + port + terminator
+
+        _mqttUriBuffer = (char *)malloc(needed);
+        if (_mqttUriBuffer == nullptr) {
+            if (_enableSerialLogs) {
+                ESP_LOGE("ESP32MQTTClient", "Failed to allocate memory for MQTT URI");
+            }
+            return;
         }
+
+        const char* scheme = (port == 8883) ? "mqtts" : "mqtt";
+        snprintf(_mqttUriBuffer, needed, "%s://%s:%u", scheme, url, port);
+
         if (_enableSerialLogs)
         {
             ESP_LOGI("ESP32MQTTClient", "MQTT uri %s", _mqttUriBuffer);
