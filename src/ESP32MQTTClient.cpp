@@ -6,11 +6,14 @@ static const char *TAG = "ESP32MQTTClient";
 
 ESP32MQTTClient::ESP32MQTTClient(/* args */)
 {
+    memset(&_mqtt_config, 0, sizeof(_mqtt_config));
     _mqttConnected = false;
     _mqttMaxInPacketSize = DEFAULT_PACKET_SIZE;
     _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
     _mqttLastWillTopic = nullptr;
     _mqttLastWillMessage = nullptr;
+    _mqttLastWillQos = 0;
+    _mqttLastWillRetain = false;
     _mqttUriBuffer = nullptr;
     _globalMessageReceivedCallback = nullptr;
 }
