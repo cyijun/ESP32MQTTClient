@@ -190,7 +190,7 @@ void loop() {
 - `setKey(clientKey)` - Set client private key
 - `setMaxPacketSize(size)` - Set maximum packet size (default: 1024)
 - `setKeepAlive(seconds)` - Change keepalive interval (default: 15s)
-- `enableLastWillMessage(topic, message, retain)` - Set last will message
+- `enableLastWillMessage(topic, message, retain, qos = 0)` - Set last will message
 - `setAutoReconnect(choice)` - Enable/disable auto-reconnect
 - `disableAutoReconnect()` - Disable auto-reconnect
 - `enableDebuggingMessages(enabled)` - Enable debug logging
@@ -201,7 +201,7 @@ void loop() {
 - `isMyTurn(client)` - Check if event is for this client
 
 ### Pub/Sub Methods
-- `publish(topic, payload, qos, retain)` → `bool` - Publish message
+- `publish(topic, payload, qos, retain)` → `bool` - Publish message. The full `std::string` length is used, so binary payloads containing embedded `\0` bytes are preserved.
 - `subscribe(topic, callback, qos)` → `bool` - Subscribe with payload callback
 - `subscribe(topic, callbackWithTopic, qos)` → `bool` - Subscribe with topic+payload callback
 - `unsubscribe(topic)` → `bool` - Unsubscribe from topic
@@ -232,7 +232,7 @@ mqttClient.setAutoReconnect(false);
 
 ## Building the ESP-IDF Example
 
-The library includes a native ESP-IDF example in the `examples/CppEspIdf` directory. To build it:
+The library includes a native ESP-IDF example in the `examples/CppEspIdf` directory. The top-level `CMakeLists.txt` registers the library as an ESP-IDF component using `idf_component_register()`.
 
 1.  **Set up ESP-IDF:** Ensure you have the ESP-IDF environment installed and configured.
 2.  **Configure Wi-Fi:** Open `examples/CppEspIdf/main/main.cpp` and set your Wi-Fi SSID and password.

@@ -7,23 +7,22 @@ static const char *TAG = "ESP32MQTTClient";
 ESP32MQTTClient::ESP32MQTTClient(/* args */)
 {
     memset(&_mqtt_config, 0, sizeof(_mqtt_config));
-    _mqttConnected = false;
-    _mqttMaxInPacketSize = DEFAULT_PACKET_SIZE;
-    _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
-    _mqttLastWillTopic = nullptr;
-    _mqttLastWillMessage = nullptr;
-    _mqttLastWillQos = 0;
-    _mqttLastWillRetain = false;
-    _mqttUriBuffer = nullptr;
-    _globalMessageReceivedCallback = nullptr;
+    _subscriptionListMutex = xSemaphoreCreateMutex();
 }
 
 ESP32MQTTClient::~ESP32MQTTClient()
 {
-    esp_mqtt_client_destroy(_mqtt_client);
+    if (_mqtt_client != nullptr) {
+        esp_mqtt_client_destroy(_mqtt_client);
+        _mqtt_client = nullptr;
+    }
     if (_mqttUriBuffer != nullptr) {
         free(_mqttUriBuffer);
         _mqttUriBuffer = nullptr;
+    }
+    if (_subscriptionListMutex != nullptr) {
+        vSemaphoreDelete(_subscriptionListMutex);
+        _subscriptionListMutex = nullptr;
     }
 }
 
@@ -39,11 +38,12 @@ void ESP32MQTTClient::disablePersistence()
     _disableMQTTCleanSession = 1;
 }
 
-void ESP32MQTTClient::enableLastWillMessage(const char *topic, const char *message, const bool retain)
+void ESP32MQTTClient::enableLastWillMessage(const char *topic, const char *message, const bool retain, int qos)
 {
-    _mqttLastWillTopic = (char *)topic;
-    _mqttLastWillMessage = (char *)message;
+    _mqttLastWillTopic = topic;
+    _mqttLastWillMessage = message;
     _mqttLastWillRetain = retain;
+    _mqttLastWillQos = qos;
 }
 
 void ESP32MQTTClient::disableAutoReconnect()
@@ -74,7 +74,13 @@ void ESP32MQTTClient::setKey(const char *clientKey)
 
 void ESP32MQTTClient::setOnMessageCallback(MessageReceivedCallbackWithTopic callback)
 {
+    if (_subscriptionListMutex != nullptr)
+        xSemaphoreTake(_subscriptionListMutex, portMAX_DELAY);
+
     _globalMessageReceivedCallback = callback;
+
+    if (_subscriptionListMutex != nullptr)
+        xSemaphoreGive(_subscriptionListMutex);
 }
 
 void ESP32MQTTClient::setConnectionState(bool state)
@@ -114,7 +120,7 @@ bool ESP32MQTTClient::publish(const std::string &topic, const std::string &paylo
     }
 
     bool success = false;
-    if (esp_mqtt_client_publish(_mqtt_client, topic.c_str(), payload.c_str(), 0, qos, retain) != -1)
+    if (esp_mqtt_client_publish(_mqtt_client, topic.c_str(), payload.c_str(), static_cast<int>(payload.length()), qos, retain) != -1)
     {
         success = true;
     }
@@ -132,6 +138,17 @@ bool ESP32MQTTClient::publish(const std::string &topic, const std::string &paylo
 
 bool ESP32MQTTClient::subscribe(const std::string &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos)
 {
+    return subscribeInternal(topic, messageReceivedCallback, nullptr, qos);
+}
+
+bool ESP32MQTTClient::subscribe(const std::string &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos)
+{
+    return subscribeInternal(topic, nullptr, messageReceivedCallback, qos);
+}
+
+bool ESP32MQTTClient::subscribeInternal(const std::string &topic, MessageReceivedCallback callback,
+                                        MessageReceivedCallbackWithTopic callbackWithTopic, uint8_t qos)
+{
     bool success = false;
     if (esp_mqtt_client_subscribe(_mqtt_client, topic.c_str(), qos) != -1)
     {
@@ -140,13 +157,27 @@ bool ESP32MQTTClient::subscribe(const std::string &topic, MessageReceivedCallbac
 
     if (success)
     {
-        // Add the record to the subscription list only if it does not exists.
+        if (_subscriptionListMutex != nullptr)
+            xSemaphoreTake(_subscriptionListMutex, portMAX_DELAY);
+
         bool found = false;
         for (std::size_t i = 0; i < _topicSubscriptionList.size() && !found; i++)
-            found = _topicSubscriptionList[i].topic == topic;
+        {
+            if (_topicSubscriptionList[i].topic == topic)
+            {
+                found = true;
+                if (callback != nullptr)
+                    _topicSubscriptionList[i].callback = callback;
+                if (callbackWithTopic != nullptr)
+                    _topicSubscriptionList[i].callbackWithTopic = callbackWithTopic;
+            }
+        }
 
         if (!found)
-            _topicSubscriptionList.push_back({topic, messageReceivedCallback, nullptr});
+            _topicSubscriptionList.push_back({topic, callback, callbackWithTopic});
+
+        if (_subscriptionListMutex != nullptr)
+            xSemaphoreGive(_subscriptionListMutex);
     }
 
     if (_enableSerialLogs)
@@ -160,21 +191,8 @@ bool ESP32MQTTClient::subscribe(const std::string &topic, MessageReceivedCallbac
     return success;
 }
 
-bool ESP32MQTTClient::subscribe(const std::string &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos)
-{
-
-    if (subscribe(topic, (MessageReceivedCallback)nullptr, qos))
-    {
-        _topicSubscriptionList[_topicSubscriptionList.size() - 1].callbackWithTopic = messageReceivedCallback;
-        return true;
-    }
-
-    return false;
-}
-
 bool ESP32MQTTClient::unsubscribe(const std::string &topic)
 {
-
     // Do not try to unsubscribe if MQTT is not connected.
     if (!isConnected())
     {
@@ -183,6 +201,11 @@ bool ESP32MQTTClient::unsubscribe(const std::string &topic)
 
         return false;
     }
+
+    bool result = true;
+
+    if (_subscriptionListMutex != nullptr)
+        xSemaphoreTake(_subscriptionListMutex, portMAX_DELAY);
 
     for (std::size_t i = 0; i < _topicSubscriptionList.size(); i++)
     {
@@ -201,12 +224,16 @@ bool ESP32MQTTClient::unsubscribe(const std::string &topic)
                 if (_enableSerialLogs)
                     ESP_LOGW(TAG, "MQTT! unsubscribe failed");
 
-                return false;
+                result = false;
+                break;
             }
         }
     }
 
-    return true;
+    if (_subscriptionListMutex != nullptr)
+        xSemaphoreGive(_subscriptionListMutex);
+
+    return result;
 }
 
 void ESP32MQTTClient::setKeepAlive(uint16_t keepAliveSeconds)
@@ -218,63 +245,34 @@ void ESP32MQTTClient::setKeepAlive(uint16_t keepAliveSeconds)
 
 void ESP32MQTTClient::printError(esp_mqtt_error_codes_t *error_handle)
 {
+    if (error_handle == nullptr)
+        return;
+
+    const char *error_type_str = "UNKNOWN";
     switch (error_handle->error_type)
     {
     case MQTT_ERROR_TYPE_NONE:
-        ESP_LOGE(TAG, "ERROR TYPE: %s", "MQTT_ERROR_TYPE_NONE");
+        error_type_str = "NONE";
         break;
     case MQTT_ERROR_TYPE_TCP_TRANSPORT:
-        ESP_LOGE(TAG, "ERROR TYPE: %s", "MQTT_ERROR_TYPE_TCP_TRANSPORT");
-        switch (error_handle->esp_transport_sock_errno)
-        {
-        case MQTT_ERROR_TYPE_NONE:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_ERROR_TYPE_NONE");
-            break;
-        case MQTT_ERROR_TYPE_TCP_TRANSPORT:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_ERROR_TYPE_TCP_TRANSPORT");
-            break;
-        case MQTT_ERROR_TYPE_CONNECTION_REFUSED:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_ERROR_TYPE_CONNECTION_REFUSED");
-            break;
-
-        default:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_TRANSPORT_UNKONW_ERR");
-            break;
-        }
-
+        error_type_str = "TCP_TRANSPORT";
         break;
     case MQTT_ERROR_TYPE_CONNECTION_REFUSED:
-        ESP_LOGE(TAG, "ERROR TYPE: %s", "MQTT_ERROR_TYPE_CONNECTION_REFUSED");
-        switch (error_handle->connect_return_code)
-        {
-        case MQTT_CONNECTION_ACCEPTED:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_CONNECTION_ACCEPTED");
-            break;
-        case MQTT_CONNECTION_REFUSE_PROTOCOL:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_CONNECTION_REFUSE_PROTOCOL");
-            break;
-        case MQTT_CONNECTION_REFUSE_ID_REJECTED:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_CONNECTION_REFUSE_ID_REJECTED");
-            break;
-        case MQTT_CONNECTION_REFUSE_SERVER_UNAVAILABLE:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_CONNECTION_REFUSE_SERVER_UNAVAILABLE");
-            break;
-        case MQTT_CONNECTION_REFUSE_BAD_USERNAME:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_CONNECTION_REFUSE_BAD_USERNAME");
-            break;
-        case MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED");
-            break;
-
-        default:
-            ESP_LOGE(TAG, "ERROR CODE: %s", "MQTT_CONNECTION_UNKONW_ERR");
-            break;
-        }
+        error_type_str = "CONNECTION_REFUSED";
         break;
-
     default:
-        ESP_LOGE(TAG, "ERROR TYPE: %s", "MQTT_ERROR_TYPE_UNKOWN");
         break;
+    }
+
+    ESP_LOGE(TAG, "Error type: %s (%d)", error_type_str, (int)error_handle->error_type);
+
+    if (error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
+    {
+        ESP_LOGE(TAG, "ESP transport socket errno: %d", error_handle->esp_transport_sock_errno);
+    }
+    else if (error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED)
+    {
+        ESP_LOGE(TAG, "MQTT connect return code: %d", (int)error_handle->connect_return_code);
     }
 }
 
@@ -403,6 +401,13 @@ void ESP32MQTTClient::setConfigSessionSettings()
 // Try to connect to the MQTT broker and return True if the connection is successfull (blocking)
 bool ESP32MQTTClient::loopStart()
 {
+    if (_mqtt_client != nullptr)
+    {
+        if (_enableSerialLogs)
+            ESP_LOGW(TAG, "loopStart() called while MQTT client is already initialized");
+        return false;
+    }
+
     bool success = false;
     esp_err_t err = ESP_OK;
 
@@ -510,59 +515,54 @@ bool ESP32MQTTClient::mqttTopicMatch(const std::string &topic1, const std::strin
     return false;
 }
 
-void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, char *payload, unsigned int length)
+void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, const char *payload, unsigned int length)
 {
-    // Determine the actual payload length
-    unsigned int strTerminationPos;
-    if (strlen(topic) + length + 9 >= _mqttMaxInPacketSize)
-    {
-        strTerminationPos = length;
-        if (_enableSerialLogs)
-            ESP_LOGW(TAG, "MQTT! Your message may be truncated, please set setMaxPacketSize() to a higher value.");
-    }
-    else
-    {
-        strTerminationPos = length;
-    }
-
     // Create a copy of the payload, don't modify the original buffer
     std::string payloadStr;
-    if (payload && length > 0)
-    {
-        payloadStr = std::string(payload, strTerminationPos);
-    }
-    else
-    {
-        payloadStr = "";
-    }
+    if (payload != nullptr && length > 0)
+        payloadStr.assign(payload, length);
 
-    std::string topicStr(topic);
+    std::string topicStr(topic ? topic : "");
 
     // Logging
     if (_enableSerialLogs)
-        ESP_LOGI(TAG, "MQTT >> [%s] %s", topic, payloadStr.c_str());
+        ESP_LOGI(TAG, "MQTT >> [%s] %s", topicStr.c_str(), payloadStr.c_str());
 
-    // Call global callback
-    if (_globalMessageReceivedCallback) {
-        _globalMessageReceivedCallback(topicStr, payloadStr);
+    // Collect callbacks under mutex protection, then invoke without the lock
+    // to avoid deadlocks if a callback re-enters subscribe/unsubscribe.
+    MessageReceivedCallbackWithTopic globalCallback = nullptr;
+    std::vector<TopicSubscriptionRecord> matchedSubscriptions;
+
+    if (_subscriptionListMutex != nullptr)
+        xSemaphoreTake(_subscriptionListMutex, portMAX_DELAY);
+
+    globalCallback = _globalMessageReceivedCallback;
+
+    for (const auto &record : _topicSubscriptionList)
+    {
+        if (mqttTopicMatch(record.topic, topicStr))
+            matchedSubscriptions.push_back(record);
     }
 
+    if (_subscriptionListMutex != nullptr)
+        xSemaphoreGive(_subscriptionListMutex);
+
+    // Call global callback
+    if (globalCallback != nullptr)
+        globalCallback(topicStr, payloadStr);
+
     // Send the message to subscribers
-    for (std::size_t i = 0; i < _topicSubscriptionList.size(); i++)
+    for (const auto &record : matchedSubscriptions)
     {
-        if (mqttTopicMatch(_topicSubscriptionList[i].topic, topicStr))
-        {
-            if (_topicSubscriptionList[i].callback != nullptr)
-                _topicSubscriptionList[i].callback(payloadStr);
-            if (_topicSubscriptionList[i].callbackWithTopic != nullptr)
-                _topicSubscriptionList[i].callbackWithTopic(topicStr, payloadStr);
-        }
+        if (record.callback != nullptr)
+            record.callback(payloadStr);
+        if (record.callbackWithTopic != nullptr)
+            record.callbackWithTopic(topicStr, payloadStr);
     }
 }
 
 void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
 {
-    //_event = &event;
     if (event->client == _mqtt_client)
     {
         switch (event->event_id)
@@ -577,24 +577,46 @@ void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
             if (_enableSerialLogs)
                 ESP_LOGI(TAG, "MQTT -->> onMqttEventData");
             {
-                std::string topic_str(event->topic, event->topic_len);
-                onMessageReceivedCallback(topic_str.c_str(), event->data, event->data_len);
-            }
+                // Start of a new message: first fragment, topic is available
+                if (event->current_data_offset == 0)
+                {
+                    if (event->topic != nullptr && event->topic_len > 0)
+                        _incomingTopic.assign(event->topic, event->topic_len);
+                    else
+                        _incomingTopic.clear();
 
+                    _incomingPayload.clear();
+                    if (event->total_data_len > 0)
+                        _incomingPayload.reserve(event->total_data_len);
+                }
+
+                if (event->data != nullptr && event->data_len > 0)
+                    _incomingPayload.append(event->data, event->data_len);
+
+                // Last fragment received: dispatch the complete message
+                if (event->current_data_offset + event->data_len >= event->total_data_len)
+                {
+                    onMessageReceivedCallback(_incomingTopic.c_str(),
+                                              _incomingPayload.data(),
+                                              static_cast<unsigned int>(_incomingPayload.size()));
+                }
+            }
             break;
         case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGI("ESP32MQTTClient", "MQTT_EVENT_DISCONNECTED");
+            if (_enableSerialLogs)
+                ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
             setConnectionState(false);
             if (_enableSerialLogs)
                 ESP_LOGW(TAG, "MQTT -->> %s disconnected (%lus)", _mqttUri, (unsigned long)(esp_timer_get_time() / 1000000));
-            
+
             if (_drasticResetOnConnectionFailures) {
                 ESP_LOGW(TAG, "Drastic reset triggered due to connection failure");
                 esp_restart();
             }
             break;
         case MQTT_EVENT_ERROR:
-            ESP_LOGI("ESP32MQTTClient", "MQTT_EVENT_ERROR");
+            if (_enableSerialLogs)
+                ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
             printError(event->error_handle);
             break;
         default:

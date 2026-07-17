@@ -4,7 +4,9 @@
 #include <string>
 #include <mqtt_client.h>
 #include <functional>
-#include "esp_log.h"         
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "esp_log.h"
 #include "esp_idf_version.h" // check IDF version
 
 void onMqttConnect(esp_mqtt_client_handle_t client);
@@ -32,25 +34,24 @@ class ESP32MQTTClient
 {
 private:
     esp_mqtt_client_config_t _mqtt_config; // C so different naming
-    esp_mqtt_client_handle_t _mqtt_client;
+    esp_mqtt_client_handle_t _mqtt_client = nullptr;
     MessageReceivedCallbackWithTopic _globalMessageReceivedCallback = nullptr;
-	
 
     // MQTT related
-    bool _mqttConnected;
-    const char *_mqttUri;
-    const char *_mqttUsername;
-    const char *_mqttPassword;
-    const char *_mqttClientName;
-    int _disableMQTTCleanSession;
-    char *_mqttLastWillTopic;
-    char *_mqttLastWillMessage;
-    int _mqttLastWillQos;
-    bool _mqttLastWillRetain;
+    bool _mqttConnected = false;
+    const char *_mqttUri = nullptr;
+    const char *_mqttUsername = nullptr;
+    const char *_mqttPassword = nullptr;
+    const char *_mqttClientName = nullptr;
+    int _disableMQTTCleanSession = 0;
+    const char *_mqttLastWillTopic = nullptr;
+    const char *_mqttLastWillMessage = nullptr;
+    int _mqttLastWillQos = 0;
+    bool _mqttLastWillRetain = false;
 
-    int _mqttMaxInPacketSize;
-    int _mqttMaxOutPacketSize;
-    char *_mqttUriBuffer;  // Buffer for setURL allocated memory
+    int _mqttMaxInPacketSize = DEFAULT_PACKET_SIZE;
+    int _mqttMaxOutPacketSize = DEFAULT_PACKET_SIZE;
+    char *_mqttUriBuffer = nullptr;  // Buffer for setURL allocated memory
 
     struct TopicSubscriptionRecord
     {
@@ -60,9 +61,15 @@ private:
     };
     std::vector<TopicSubscriptionRecord> _topicSubscriptionList;
 
+    // Incoming message fragmentation buffers
+    std::string _incomingTopic;
+    std::string _incomingPayload;
+
     // General behaviour related
-    bool _enableSerialLogs;
-    bool _drasticResetOnConnectionFailures;
+    bool _enableSerialLogs = false;
+    bool _drasticResetOnConnectionFailures = false;
+
+    SemaphoreHandle_t _subscriptionListMutex = nullptr;
 
 public:
     // Constants
@@ -74,7 +81,7 @@ public:
     // Optional functionality
     void enableDebuggingMessages(const bool enabled = true);                                       // Allow to display useful debugging messages. Can be set to false to disable them during program execution
     void disablePersistence();                                                                 // Do not request a persistent connection. Connections are persistent by default. Must be called before the first loop() execution
-    void enableLastWillMessage(const char *topic, const char *message, const bool retain = false); // Must be set before the first loop() call.
+    void enableLastWillMessage(const char *topic, const char *message, const bool retain = false, int qos = 0); // Must be set before the first loop() call.
     void enableDrasticResetOnConnectionFailures() { _drasticResetOnConnectionFailures = true; }    // Can be usefull in special cases where the ESP board hang and need resetting (#59)
 
     void disableAutoReconnect();
@@ -88,7 +95,6 @@ public:
 	void setCaCert(const char * caCert);
 	void setKey(const char * clientKey);
     void setOnMessageCallback(MessageReceivedCallbackWithTopic callback);
-    void setConnectionState(bool state);
     void setAutoReconnect(bool choice);
     bool setMaxOutPacketSize(const uint16_t size);
     bool setMaxPacketSize(const uint16_t size); // override the default value of 1024
@@ -172,6 +178,11 @@ private:
     void setConfigLwt(const char *topic, const char *msg, int qos, bool retain);
     void setConfigSessionSettings();
 
-    void onMessageReceivedCallback(const char *topic, char *payload, unsigned int length);
+    void setConnectionState(bool state);
+
+    bool subscribeInternal(const std::string &topic, MessageReceivedCallback callback,
+                           MessageReceivedCallbackWithTopic callbackWithTopic, uint8_t qos);
+
+    void onMessageReceivedCallback(const char *topic, const char *payload, unsigned int length);
     bool mqttTopicMatch(const std::string &topic1, const std::string &topic2);
 };

@@ -1,17 +1,7 @@
-set(COMPONENT_SRCDIRS
-    "src"
+idf_component_register(
+    SRCS "src/ESP32MQTTClient.cpp"
+    INCLUDE_DIRS "src"
+    REQUIRES mqtt
 )
 
-set(COMPONENT_ADD_INCLUDEDIRS
-    "src"
-)
-
-set(COMPONENT_REQUIRES
-    "arduino-esp32"
-    "mqtt"
-)
-
-register_component()
-
-target_compile_definitions(${COMPONENT_TARGET} PUBLIC -DESP32)
 target_compile_options(${COMPONENT_TARGET} PRIVATE -fno-rtti)
