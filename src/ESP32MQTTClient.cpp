@@ -4,10 +4,15 @@
 
 static const char *TAG = "ESP32MQTTClient";
 
+// Maximum accepted size for a reassembled incoming MQTT message; larger messages are dropped
+static constexpr int MAX_INCOMING_MESSAGE_SIZE = 16 * ESP32MQTTClient::DEFAULT_PACKET_SIZE;
+
 ESP32MQTTClient::ESP32MQTTClient(/* args */)
 {
     memset(&_mqtt_config, 0, sizeof(_mqtt_config));
     _subscriptionListMutex = xSemaphoreCreateMutex();
+    if (_subscriptionListMutex == nullptr)
+        ESP_LOGE(TAG, "Failed to create subscription list mutex");
 }
 
 ESP32MQTTClient::~ESP32MQTTClient()
@@ -26,7 +31,7 @@ ESP32MQTTClient::~ESP32MQTTClient()
     }
 }
 
-// =============== Configuration functions, most of them must be called before the first loop() call ==============
+// =============== Configuration functions, most of them must be called before loopStart() ==============
 
 void ESP32MQTTClient::enableDebuggingMessages(const bool enabled)
 {
@@ -35,11 +40,24 @@ void ESP32MQTTClient::enableDebuggingMessages(const bool enabled)
 
 void ESP32MQTTClient::disablePersistence()
 {
+    // clean_session = 1: the broker discards the session on disconnect (esp-mqtt default)
+    _disableMQTTCleanSession = 0;
+}
+
+void ESP32MQTTClient::enablePersistence()
+{
+    // clean_session = 0: request a persistent session from the broker
     _disableMQTTCleanSession = 1;
 }
 
 void ESP32MQTTClient::enableLastWillMessage(const char *topic, const char *message, const bool retain, int qos)
 {
+    if (message == nullptr)
+    {
+        ESP_LOGE(TAG, "Last will message is null, ignoring");
+        return;
+    }
+
     _mqttLastWillTopic = topic;
     _mqttLastWillMessage = message;
     _mqttLastWillRetain = retain;
@@ -95,6 +113,8 @@ void ESP32MQTTClient::setAutoReconnect(bool choice)
 
 bool ESP32MQTTClient::setMaxOutPacketSize(const uint16_t size)
 {
+    if (size == 0)
+        return false;
 
     _mqttMaxOutPacketSize = size;
     return true;
@@ -102,6 +122,9 @@ bool ESP32MQTTClient::setMaxOutPacketSize(const uint16_t size)
 
 bool ESP32MQTTClient::setMaxPacketSize(const uint16_t size)
 {
+    if (size == 0)
+        return false;
+
     _mqttMaxInPacketSize = size;
     _mqttMaxOutPacketSize = _mqttMaxInPacketSize;
 
@@ -202,7 +225,9 @@ bool ESP32MQTTClient::unsubscribe(const std::string &topic)
         return false;
     }
 
-    bool result = true;
+    // Remove the record under mutex protection, then call the esp-mqtt API
+    // without holding the lock.
+    bool found = false;
 
     if (_subscriptionListMutex != nullptr)
         xSemaphoreTake(_subscriptionListMutex, portMAX_DELAY);
@@ -211,29 +236,30 @@ bool ESP32MQTTClient::unsubscribe(const std::string &topic)
     {
         if (_topicSubscriptionList[i].topic == topic)
         {
-            if (esp_mqtt_client_unsubscribe(_mqtt_client, topic.c_str()) != -1)
-            {
-                _topicSubscriptionList.erase(_topicSubscriptionList.begin() + i);
-                i--;
-
-                if (_enableSerialLogs)
-                    ESP_LOGI(TAG, "MQTT: Unsubscribed from %s", topic.c_str());
-            }
-            else
-            {
-                if (_enableSerialLogs)
-                    ESP_LOGW(TAG, "MQTT! unsubscribe failed");
-
-                result = false;
-                break;
-            }
+            _topicSubscriptionList.erase(_topicSubscriptionList.begin() + i);
+            found = true;
+            break;
         }
     }
 
     if (_subscriptionListMutex != nullptr)
         xSemaphoreGive(_subscriptionListMutex);
 
-    return result;
+    if (!found)
+        return false;
+
+    if (esp_mqtt_client_unsubscribe(_mqtt_client, topic.c_str()) != -1)
+    {
+        if (_enableSerialLogs)
+            ESP_LOGI(TAG, "MQTT: Unsubscribed from %s", topic.c_str());
+
+        return true;
+    }
+
+    if (_enableSerialLogs)
+        ESP_LOGW(TAG, "MQTT! unsubscribe failed");
+
+    return false;
 }
 
 void ESP32MQTTClient::setKeepAlive(uint16_t keepAliveSeconds)
@@ -398,7 +424,8 @@ void ESP32MQTTClient::setConfigSessionSettings()
 #endif
 }
 
-// Try to connect to the MQTT broker and return True if the connection is successfull (blocking)
+// Start the MQTT client and return true if esp_mqtt_client_start() succeeded.
+// Non-blocking: the connection itself is established asynchronously by the esp-mqtt task.
 bool ESP32MQTTClient::loopStart()
 {
     if (_mqtt_client != nullptr)
@@ -454,6 +481,13 @@ bool ESP32MQTTClient::loopStart()
         {
             success = false;
         }
+
+        if (!success && _mqtt_client != nullptr)
+        {
+            // Destroy the client so a later loopStart() call can retry from a clean state
+            esp_mqtt_client_destroy(_mqtt_client);
+            _mqtt_client = nullptr;
+        }
     }
     else
     {
@@ -477,42 +511,51 @@ bool ESP32MQTTClient::loopStart()
 }
 
 /**
- * Matching MQTT topics, handling the eventual presence of a single wildcard character
+ * Match an MQTT topic filter against a concrete topic, level by level ('/' separated).
  *
- * @param topic1 is the topic may contain a wildcard
+ * '#' matches the parent level itself plus any number of remaining levels
+ * (e.g. "sport/#" matches "sport", "sport/x" and "sport/x/y").
+ * '+' matches exactly one level, which may be empty (e.g. "sport/+" matches "sport/"
+ * but not "sport" nor "sport/x/y").
+ *
+ * @param topic1 is the topic filter, may contain wildcards
  * @param topic2 must not contain wildcards
  * @return true on MQTT topic match, false otherwise
  */
 bool ESP32MQTTClient::mqttTopicMatch(const std::string &topic1, const std::string &topic2)
 {
-    size_t i = 0;
+    size_t pos1 = 0;
+    size_t pos2 = 0;
 
-    if ((i = topic1.find('#')) != std::string::npos)
+    while (pos1 <= topic1.size())
     {
-        std::string t1a = topic1.substr(0, i);
-        std::string t1b = topic1.substr(i + 1);
-        if ((t1a.length() == 0 || topic2.rfind(t1a, 0) == 0) &&
-            (t1b.length() == 0 || (topic2.size() >= t1b.size() && topic2.compare(topic2.size() - t1b.size(), t1b.size(), t1b) == 0)))
+        size_t end1 = topic1.find('/', pos1);
+        std::string level1 = topic1.substr(pos1, end1 == std::string::npos ? std::string::npos : end1 - pos1);
+
+        // '#' matches the parent level itself and any remaining levels
+        if (level1 == "#")
             return true;
-    }
-    else if ((i = topic1.find('+')) != std::string::npos)
-    {
-        std::string t1a = topic1.substr(0, i);
-        std::string t1b = topic1.substr(i + 1);
 
-        if ((t1a.length() == 0 || topic2.rfind(t1a, 0) == 0) &&
-            (t1b.length() == 0 || (topic2.size() >= t1b.size() && topic2.compare(topic2.size() - t1b.size(), t1b.size(), t1b) == 0)))
-        {
-            if (topic2.substr(t1a.length(), topic2.length() - t1b.length() - t1a.length()).find('/') == std::string::npos)
-                return true;
-        }
-    }
-    else
-    {
-        return topic1 == topic2;
+        // The filter still expects a level but the topic has none left
+        if (pos2 > topic2.size())
+            return false;
+
+        size_t end2 = topic2.find('/', pos2);
+        std::string level2 = topic2.substr(pos2, end2 == std::string::npos ? std::string::npos : end2 - pos2);
+
+        // '+' matches exactly one level, anything else must be equal
+        if (level1 != "+" && level1 != level2)
+            return false;
+
+        if (end1 == std::string::npos)
+            // Last filter level consumed: match only if the topic has no extra levels
+            return end2 == std::string::npos;
+
+        pos1 = end1 + 1;
+        pos2 = (end2 == std::string::npos) ? topic2.size() + 1 : end2 + 1;
     }
 
-    return false;
+    return true;
 }
 
 void ESP32MQTTClient::onMessageReceivedCallback(const char *topic, const char *payload, unsigned int length)
@@ -577,6 +620,16 @@ void ESP32MQTTClient::onEventCallback(esp_mqtt_event_handle_t event)
             if (_enableSerialLogs)
                 ESP_LOGI(TAG, "MQTT -->> onMqttEventData");
             {
+                // total_data_len is present in every fragment event: reject oversized
+                // messages up front and drop all their fragments.
+                if (event->total_data_len > MAX_INCOMING_MESSAGE_SIZE)
+                {
+                    _incomingTopic.clear();
+                    _incomingPayload.clear();
+                    ESP_LOGW(TAG, "MQTT message too large (%d bytes, max %d), dropping it", event->total_data_len, MAX_INCOMING_MESSAGE_SIZE);
+                    break;
+                }
+
                 // Start of a new message: first fragment, topic is available
                 if (event->current_data_offset == 0)
                 {

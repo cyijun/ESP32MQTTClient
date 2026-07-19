@@ -5,11 +5,11 @@
 const char *ssid = "ssid";
 const char *pass = "passwd";
 
-// Test Mosquitto server, see: https://test.mosquitto.org
-char *server = "mqtt://foo.bar:1883";
+// Public MQTT test broker (see https://test.mosquitto.org), do not use in production
+const char *server = "mqtt://test.mosquitto.org:1883";
 
-char *subscribeTopic = "foo";
-char *publishTopic = "bar/bar";
+const char *subscribeTopic = "foo";
+const char *publishTopic = "bar/bar";
 
 ESP32MQTTClient mqttClient; // all params are set later
 

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <string>
+#include <atomic>
 #include <mqtt_client.h>
 #include <functional>
 #include "freertos/FreeRTOS.h"
@@ -38,7 +39,7 @@ private:
     MessageReceivedCallbackWithTopic _globalMessageReceivedCallback = nullptr;
 
     // MQTT related
-    bool _mqttConnected = false;
+    std::atomic<bool> _mqttConnected{false};
     const char *_mqttUri = nullptr;
     const char *_mqttUsername = nullptr;
     const char *_mqttPassword = nullptr;
@@ -78,41 +79,47 @@ public:
     ESP32MQTTClient(/* args */);
     ~ESP32MQTTClient();
 
+    // Non-copyable: the class owns a malloc'd buffer, a mutex and the esp-mqtt handle
+    ESP32MQTTClient(const ESP32MQTTClient &) = delete;
+    ESP32MQTTClient &operator=(const ESP32MQTTClient &) = delete;
+
     // Optional functionality
     void enableDebuggingMessages(const bool enabled = true);                                       // Allow to display useful debugging messages. Can be set to false to disable them during program execution
-    void disablePersistence();                                                                 // Do not request a persistent connection. Connections are persistent by default. Must be called before the first loop() execution
-    void enableLastWillMessage(const char *topic, const char *message, const bool retain = false, int qos = 0); // Must be set before the first loop() call.
+    void disablePersistence();                                                                     // Do not request a persistent session (clean_session = 1, the esp-mqtt default). Must be called before loopStart()
+    void enablePersistence();                                                                      // Request a persistent session from the broker (clean_session = 0). Must be called before loopStart()
+    void enableLastWillMessage(const char *topic, const char *message, const bool retain = false, int qos = 0); // Must be called before loopStart().
     void enableDrasticResetOnConnectionFailures() { _drasticResetOnConnectionFailures = true; }    // Can be usefull in special cases where the ESP board hang and need resetting (#59)
 
     void disableAutoReconnect();
     void setTaskPrio(int prio);
 
-    /// Main loop, to call at each sketch loop()
-    //void loop();
+    // MQTT runs in a background task once loopStart() has been called, no loop() polling is required
 
     // MQTT related
-	void setClientCert(const char * clientCert);
-	void setCaCert(const char * caCert);
-	void setKey(const char * clientKey);
+	void setClientCert(const char * clientCert);  // Must be called before loopStart()
+	void setCaCert(const char * caCert);          // Must be called before loopStart()
+	void setKey(const char * clientKey);          // Must be called before loopStart()
     void setOnMessageCallback(MessageReceivedCallbackWithTopic callback);
     void setAutoReconnect(bool choice);
     bool setMaxOutPacketSize(const uint16_t size);
-    bool setMaxPacketSize(const uint16_t size); // override the default value of 1024
+    bool setMaxPacketSize(const uint16_t size); // override the default value of 1024. Must be called before loopStart()
     bool publish(const std::string &topic, const std::string &payload, int qos = 0, bool retain = false);
+    // Subscribe to a topic. Should be called once the connection is established (i.e. from onMqttConnect);
+    // calling it before loopStart() fails because the esp-mqtt client does not exist yet.
     bool subscribe(const std::string &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos = 0);
     bool subscribe(const std::string &topic, MessageReceivedCallbackWithTopic messageReceivedCallback, uint8_t qos = 0);
     bool unsubscribe(const std::string &topic);                                       // Unsubscribes from the topic, if it exists, and removes it from the CallbackList.
-    void setKeepAlive(uint16_t keepAliveSeconds);                                // Change the keepalive interval (15 seconds by default)
-    inline void setMqttClientName(const char *name) { _mqttClientName = name; }; // Allow to set client name manually (must be done in setup(), else it will not work.)
+    void setKeepAlive(uint16_t keepAliveSeconds);                                // Change the keepalive interval (default is 120 seconds, the esp-mqtt default). Must be called before loopStart()
+    inline void setMqttClientName(const char *name) { _mqttClientName = name; }; // Allow to set client name manually. Must be called before loopStart()
     inline void setURI(const char *uri, const char *username = "", const char *password = "")
-    { // Allow setting the MQTT info manually (must be done in setup())
+    { // Allow setting the MQTT info manually. Must be called before loopStart()
         _mqttUri = uri;
         _mqttUsername = username;
         _mqttPassword = password;
     };
 
     inline void setURL(const char *url, const uint16_t port, const char *username = "", const char *password = "")
-    { // Allow setting the MQTT info manually (must be done in setup())
+    { // Allow setting the MQTT info manually. Must be called before loopStart()
         // Free previous buffer if exists
         if (_mqttUriBuffer != nullptr) {
             free(_mqttUriBuffer);
@@ -140,7 +147,7 @@ public:
         }
 
         const char* scheme = (port == 8883) ? "mqtts" : "mqtt";
-        snprintf(_mqttUriBuffer, needed, "%s://%s:%u", scheme, url, port);
+        snprintf(_mqttUriBuffer, needed, "%s://%s:%u", scheme, url, static_cast<unsigned>(port));
 
         if (_enableSerialLogs)
         {
@@ -151,8 +158,8 @@ public:
         _mqttPassword = password;
     };
 
-    inline bool isConnected() const { return _mqttConnected; };    
-    inline bool isMyTurn(esp_mqtt_client_handle_t client) const { return _mqtt_client==client; }; // Return true if mqtt is connected
+    inline bool isConnected() const { return _mqttConnected.load(); };
+    inline bool isMyTurn(esp_mqtt_client_handle_t client) const { return _mqtt_client==client; }; // Return true if the given handle is this client's esp-mqtt handle
 
     inline const char *getClientName() { return _mqttClientName; };
     inline const char *getURI() { return _mqttUri; };

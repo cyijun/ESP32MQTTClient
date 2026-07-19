@@ -182,6 +182,9 @@ void loop() {
 ## API Reference
 
 ### Configuration Methods
+
+Unless otherwise noted, configuration setters must be called before `loopStart()`.
+
 - `setURL(url, port, username, password)` - Set broker connection details
 - `setURI(uri, username, password)` - Set complete MQTT URI
 - `setMqttClientName(name)` - Set client ID
@@ -189,16 +192,25 @@ void loop() {
 - `setClientCert(clientCert)` - Set client certificate
 - `setKey(clientKey)` - Set client private key
 - `setMaxPacketSize(size)` - Set maximum packet size (default: 1024)
-- `setKeepAlive(seconds)` - Change keepalive interval (default: 15s)
-- `enableLastWillMessage(topic, message, retain, qos = 0)` - Set last will message
+- `setMaxOutPacketSize(size)` → `bool` - Set maximum outgoing packet size (default: 1024)
+- `setKeepAlive(seconds)` - Change keepalive interval (default: 120 seconds, the esp-mqtt default — the library does not set one itself)
+- `setTaskPrio(prio)` - Set the priority of the MQTT background task
+- `enablePersistence()` - Request a persistent session from the broker (clean_session = 0)
+- `disablePersistence()` - Do not request a persistent session (restores the default non-persistent behavior)
+- `enableLastWillMessage(topic, message, retain = false, qos = 0)` - Set last will message
 - `setAutoReconnect(choice)` - Enable/disable auto-reconnect
 - `disableAutoReconnect()` - Disable auto-reconnect
+- `enableDrasticResetOnConnectionFailures()` - Restart the ESP32 when the MQTT connection is lost (#59)
 - `enableDebuggingMessages(enabled)` - Enable debug logging
+- `DEFAULT_PACKET_SIZE` - Constant, the default packet size in bytes (1024), used by `setMaxPacketSize()` / `setMaxOutPacketSize()`
 
 ### Lifecycle Methods
 - `loopStart()` - Start non-blocking MQTT connection
 - `isConnected()` - Check connection status
 - `isMyTurn(client)` - Check if event is for this client
+- `getClientName()` → `const char *` - Get the configured client name
+- `getURI()` → `const char *` - Get the configured broker URI
+- `printError(error_handle)` - Log a decoded `esp_mqtt_error_codes_t` error
 
 ### Pub/Sub Methods
 - `publish(topic, payload, qos, retain)` → `bool` - Publish message. The full `std::string` length is used, so binary payloads containing embedded `\0` bytes are preserved.

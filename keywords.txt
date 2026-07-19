@@ -1,0 +1,37 @@
+# Syntax Coloring Map For ESP32MQTTClient
+
+# Class (KEYWORD1)
+ESP32MQTTClient	KEYWORD1
+
+# Public methods (KEYWORD2)
+enableDebuggingMessages	KEYWORD2
+enablePersistence	KEYWORD2
+disablePersistence	KEYWORD2
+enableLastWillMessage	KEYWORD2
+enableDrasticResetOnConnectionFailures	KEYWORD2
+disableAutoReconnect	KEYWORD2
+setTaskPrio	KEYWORD2
+setClientCert	KEYWORD2
+setCaCert	KEYWORD2
+setKey	KEYWORD2
+setOnMessageCallback	KEYWORD2
+setAutoReconnect	KEYWORD2
+setMaxPacketSize	KEYWORD2
+setMaxOutPacketSize	KEYWORD2
+setKeepAlive	KEYWORD2
+setMqttClientName	KEYWORD2
+setURI	KEYWORD2
+setURL	KEYWORD2
+publish	KEYWORD2
+subscribe	KEYWORD2
+unsubscribe	KEYWORD2
+loopStart	KEYWORD2
+isConnected	KEYWORD2
+isMyTurn	KEYWORD2
+getClientName	KEYWORD2
+getURI	KEYWORD2
+printError	KEYWORD2
+onEventCallback	KEYWORD2
+
+# Constants (LITERAL1)
+DEFAULT_PACKET_SIZE	LITERAL1
