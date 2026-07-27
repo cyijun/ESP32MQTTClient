@@ -133,6 +133,11 @@ bool ESP32MQTTClient::setMaxPacketSize(const uint16_t size)
 
 bool ESP32MQTTClient::publish(const std::string &topic, const std::string &payload, int qos, bool retain)
 {
+    return publish(topic, reinterpret_cast<const uint8_t *>(payload.data()), payload.length(), qos, retain);
+}
+
+bool ESP32MQTTClient::publish(const std::string &topic, const uint8_t *payload, size_t payloadLength, int qos, bool retain)
+{
     // Do not try to publish if MQTT is not connected.
     if (!isConnected()) //! isConnected())
     {
@@ -143,7 +148,7 @@ bool ESP32MQTTClient::publish(const std::string &topic, const std::string &paylo
     }
 
     bool success = false;
-    if (esp_mqtt_client_publish(_mqtt_client, topic.c_str(), payload.c_str(), static_cast<int>(payload.length()), qos, retain) != -1)
+    if (esp_mqtt_client_publish(_mqtt_client, topic.c_str(), reinterpret_cast<const char *>(payload), static_cast<int>(payloadLength), qos, retain) != -1)
     {
         success = true;
     }
@@ -151,7 +156,7 @@ bool ESP32MQTTClient::publish(const std::string &topic, const std::string &paylo
     if (_enableSerialLogs)
     {
         if (success)
-            ESP_LOGI(TAG, "MQTT << [%s] %s", topic.c_str(), payload.c_str());
+            ESP_LOGI(TAG, "MQTT << [%s] (%u bytes)", topic.c_str(), (unsigned int)payloadLength);
         else
             ESP_LOGW(TAG, "Publish failed, is the message too long ? (see setMaxPacketSize())"); // This can occurs if the message is too long according to the maximum defined in PubsubClient.h
     }

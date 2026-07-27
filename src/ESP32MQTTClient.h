@@ -104,6 +104,9 @@ public:
     bool setMaxOutPacketSize(const uint16_t size);
     bool setMaxPacketSize(const uint16_t size); // override the default value of 1024. Must be called before loopStart()
     bool publish(const std::string &topic, const std::string &payload, int qos = 0, bool retain = false);
+    // Publish a raw buffer with explicit length, for binary payloads (e.g. Protocol Buffers)
+    // without converting to std::string first.
+    bool publish(const std::string &topic, const uint8_t *payload, size_t payloadLength, int qos = 0, bool retain = false);
     // Subscribe to a topic. Should be called once the connection is established (i.e. from onMqttConnect);
     // calling it before loopStart() fails because the esp-mqtt client does not exist yet.
     bool subscribe(const std::string &topic, MessageReceivedCallback messageReceivedCallback, uint8_t qos = 0);

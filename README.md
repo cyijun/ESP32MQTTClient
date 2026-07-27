@@ -214,6 +214,7 @@ Unless otherwise noted, configuration setters must be called before `loopStart()
 
 ### Pub/Sub Methods
 - `publish(topic, payload, qos, retain)` → `bool` - Publish message. The full `std::string` length is used, so binary payloads containing embedded `\0` bytes are preserved.
+- `publish(topic, buffer, length, qos, retain)` → `bool` - Publish a raw `uint8_t` buffer with explicit length, for binary payloads (e.g. Protocol Buffers) without converting to `std::string` first.
 - `subscribe(topic, callback, qos)` → `bool` - Subscribe with payload callback
 - `subscribe(topic, callbackWithTopic, qos)` → `bool` - Subscribe with topic+payload callback
 - `unsubscribe(topic)` → `bool` - Unsubscribe from topic
