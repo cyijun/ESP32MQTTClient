@@ -64,7 +64,10 @@ esp_err_t handleMQTT(esp_mqtt_event_handle_t event)
 #else  // IDF CHECK
 void handleMQTT(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
+    (void)base;
+    (void)event_id;
+    auto *client = static_cast<ESP32MQTTClient *>(handler_args);
     auto *event = static_cast<esp_mqtt_event_handle_t>(event_data);
-    mqttClient.onEventCallback(event);
+    client->onEventCallback(event);
 }
 #endif // // IDF CHECK

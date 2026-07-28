@@ -25,7 +25,7 @@ A thread-safe MQTT client for native ESP-IDF or Arduino ESP32. This library is c
 
 ## Features
 
-- **Non-blocking operation** - MQTT runs in background FreeRTOS task, no `loop()` calls needed
+- **Background connection and event handling** - `loopStart()` returns immediately and no `loop()` polling call is needed
 - **Thread-safe** MQTT client based on the official `esp-mqtt` component
 - **TLS/SSL support** for secure MQTT connections (port 8883)
 - Uses standard C++ `std::string` instead of Arduino `String`
@@ -37,12 +37,14 @@ A thread-safe MQTT client for native ESP-IDF or Arduino ESP32. This library is c
 
 ## Non-Blocking Architecture
 
-Unlike blocking MQTT libraries, `loopStart()` returns immediately and MQTT operations run in a background FreeRTOS task. This means:
+`loopStart()` returns immediately. Connection, reconnection, and MQTT event handling
+then run in the background task managed by esp-mqtt, so no `loop()` polling call is
+required.
 
-- No watchdog timeouts during connection
-- Safe for single-core devices (e.g., ESP32-C3)
-- Main loop stays responsive
-- Connection typically completes in ~1 second vs 8+ seconds with blocking clients
+This does not mean that every API call is non-blocking. In particular, `publish()`
+uses `esp_mqtt_client_publish()`, which can block while waiting for network access or
+while sending a fragmented message. Message callbacks also run from the MQTT event
+task and should therefore finish quickly.
 
 ## Quick Start
 
@@ -54,13 +56,37 @@ Unlike blocking MQTT libraries, `loopStart()` returns immediately and MQTT opera
 
 ESP32MQTTClient mqttClient;
 
+void onMqttConnect(esp_mqtt_client_handle_t client) {
+  if (mqttClient.isMyTurn(client)) {
+    mqttClient.subscribe("test/topic", [](const std::string &payload) {
+      Serial.printf("Received: %s\n", payload.c_str());
+    });
+  }
+}
+
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+esp_err_t handleMQTT(esp_mqtt_event_handle_t event) {
+  mqttClient.onEventCallback(event);
+  return ESP_OK;
+}
+#else
+void handleMQTT(void *handler_args, esp_event_base_t base,
+                int32_t event_id, void *event_data) {
+  (void)base;
+  (void)event_id;
+  auto *client = static_cast<ESP32MQTTClient *>(handler_args);
+  auto *event = static_cast<esp_mqtt_event_handle_t>(event_data);
+  client->onEventCallback(event);
+}
+#endif
+
 void setup() {
   Serial.begin(115200);
-  WiFi.begin("SSID", "PASSWORD");
-  
+
   mqttClient.setURI("mqtt://broker.hivemq.com:1883");
   mqttClient.setMqttClientName("ESP32_Client");
-  mqttClient.loopStart(); // Non-blocking!
+  WiFi.begin("SSID", "PASSWORD");
+  mqttClient.loopStart(); // Returns immediately.
 }
 
 void loop() {
@@ -127,8 +153,11 @@ esp_err_t handleMQTT(esp_mqtt_event_handle_t event) {
 }
 #else
 void handleMQTT(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+  (void)base;
+  (void)event_id;
+  auto *client = static_cast<ESP32MQTTClient *>(handler_args);
   auto *event = static_cast<esp_mqtt_event_handle_t>(event_data);
-  mqttClient.onEventCallback(event);
+  client->onEventCallback(event);
 }
 #endif
 ```
@@ -139,11 +168,11 @@ If you're migrating from the popular PubSubClient library:
 
 | PubSubClient | ESP32MQTTClient | Notes |
 |-------------|-----------------|-------|
-| `client.connect()` | `mqttClient.loopStart()` | Non-blocking, returns immediately |
+| `client.connect()` | `mqttClient.loopStart()` | Connection startup returns immediately |
 | `client.loop()` | **Not needed** | Runs automatically in background |
 | `client.connected()` | `mqttClient.isConnected()` | Check connection status |
 | `client.setServer()` + `setCallback()` | `mqttClient.setURL()` + callbacks | Similar setup pattern |
-| `client.setBufferSize()` | `mqttClient.setMaxPacketSize()` | Adjust packet size limits |
+| `client.setBufferSize()` | `mqttClient.setMaxPacketSize()` | Configure esp-mqtt buffer sizes |
 | Arduino `String` | `std::string` | Use `.c_str()` for conversion |
 
 ### Example Migration
@@ -171,7 +200,7 @@ ESP32MQTTClient mqttClient;
 
 void setup() {
   mqttClient.setURI("mqtt://broker:1883");
-  mqttClient.loopStart(); // Returns immediately!
+  mqttClient.loopStart(); // Connection startup returns immediately.
 }
 
 void loop() {
@@ -191,8 +220,8 @@ Unless otherwise noted, configuration setters must be called before `loopStart()
 - `setCaCert(caCert)` - Enable TLS with CA certificate
 - `setClientCert(clientCert)` - Set client certificate
 - `setKey(clientKey)` - Set client private key
-- `setMaxPacketSize(size)` - Set maximum packet size (default: 1024)
-- `setMaxOutPacketSize(size)` → `bool` - Set maximum outgoing packet size (default: 1024)
+- `setMaxPacketSize(size)` → `bool` - Set the esp-mqtt incoming and outgoing buffer sizes (default: 1024 bytes). Complete incoming messages are reassembled up to 16 KiB by default; setting this above 16 KiB raises that reassembly limit to the requested size.
+- `setMaxOutPacketSize(size)` → `bool` - Set the esp-mqtt outgoing buffer size (default: 1024 bytes)
 - `setKeepAlive(seconds)` - Change keepalive interval (default: 120 seconds, the esp-mqtt default — the library does not set one itself)
 - `setTaskPrio(prio)` - Set the priority of the MQTT background task
 - `enablePersistence()` - Request a persistent session from the broker (clean_session = 0)
@@ -202,10 +231,10 @@ Unless otherwise noted, configuration setters must be called before `loopStart()
 - `disableAutoReconnect()` - Disable auto-reconnect
 - `enableDrasticResetOnConnectionFailures()` - Restart the ESP32 when the MQTT connection is lost (#59)
 - `enableDebuggingMessages(enabled)` - Enable debug logging
-- `DEFAULT_PACKET_SIZE` - Constant, the default packet size in bytes (1024), used by `setMaxPacketSize()` / `setMaxOutPacketSize()`
+- `DEFAULT_PACKET_SIZE` - Constant, the default buffer size in bytes (1024), used by `setMaxPacketSize()` / `setMaxOutPacketSize()`
 
 ### Lifecycle Methods
-- `loopStart()` - Start non-blocking MQTT connection
+- `loopStart()` - Start the background MQTT connection process and return immediately
 - `isConnected()` - Check connection status
 - `isMyTurn(client)` - Check if event is for this client
 - `getClientName()` → `const char *` - Get the configured client name
@@ -213,11 +242,18 @@ Unless otherwise noted, configuration setters must be called before `loopStart()
 - `printError(error_handle)` - Log a decoded `esp_mqtt_error_codes_t` error
 
 ### Pub/Sub Methods
-- `publish(topic, payload, qos, retain)` → `bool` - Publish message. The full `std::string` length is used, so binary payloads containing embedded `\0` bytes are preserved.
-- `publish(topic, buffer, length, qos, retain)` → `bool` - Publish a raw `uint8_t` buffer with explicit length, for binary payloads (e.g. Protocol Buffers) without converting to `std::string` first.
-- `subscribe(topic, callback, qos)` → `bool` - Subscribe with payload callback
-- `subscribe(topic, callbackWithTopic, qos)` → `bool` - Subscribe with topic+payload callback
-- `unsubscribe(topic)` → `bool` - Unsubscribe from topic
+
+The `bool` returned by the methods below reports whether the request was accepted
+by the local esp-mqtt client. It does not report a broker acknowledgement such as
+PUBACK, SUBACK, or UNSUBACK.
+If a subscribe or unsubscribe request cannot be submitted, the local callback
+registration remains as it was before the call.
+
+- `publish(topic, payload, qos, retain)` → `bool` - Submit a message for publishing. The call may block; the full `std::string` length is used, so binary payloads containing embedded `\0` bytes are preserved.
+- `publish(topic, buffer, length, qos, retain)` → `bool` - Submit a raw `uint8_t` buffer with explicit length, for binary payloads (e.g. Protocol Buffers) without converting to `std::string` first. The call may block.
+- `subscribe(topic, callback, qos)` → `bool` - Submit a subscription request with a payload callback
+- `subscribe(topic, callbackWithTopic, qos)` → `bool` - Submit a subscription request with a topic+payload callback
+- `unsubscribe(topic)` → `bool` - Submit an unsubscribe request
 - `setOnMessageCallback(callback)` - Set global message handler
 
 ## New Functions

@@ -1,10 +1,16 @@
 #pragma once
 
-#include <vector>
-#include <string>
 #include <atomic>
-#include <mqtt_client.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
+#include <string>
+#include <vector>
+
+#include <mqtt_client.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "esp_log.h"
@@ -52,6 +58,7 @@ private:
 
     int _mqttMaxInPacketSize = DEFAULT_PACKET_SIZE;
     int _mqttMaxOutPacketSize = DEFAULT_PACKET_SIZE;
+    std::size_t _mqttMaxIncomingMessageSize = 16 * DEFAULT_PACKET_SIZE;
     char *_mqttUriBuffer = nullptr;  // Buffer for setURL allocated memory
 
     struct TopicSubscriptionRecord
@@ -59,16 +66,18 @@ private:
         std::string topic;
         MessageReceivedCallback callback;
         MessageReceivedCallbackWithTopic callbackWithTopic;
+        uint32_t generation;
     };
     std::vector<TopicSubscriptionRecord> _topicSubscriptionList;
+    uint32_t _subscriptionGeneration = 0;
 
     // Incoming message fragmentation buffers
     std::string _incomingTopic;
     std::string _incomingPayload;
 
     // General behaviour related
-    bool _enableSerialLogs = false;
-    bool _drasticResetOnConnectionFailures = false;
+    std::atomic<bool> _enableSerialLogs{false};
+    std::atomic<bool> _drasticResetOnConnectionFailures{false};
 
     SemaphoreHandle_t _subscriptionListMutex = nullptr;
 
@@ -88,7 +97,7 @@ public:
     void disablePersistence();                                                                     // Do not request a persistent session (clean_session = 1, the esp-mqtt default). Must be called before loopStart()
     void enablePersistence();                                                                      // Request a persistent session from the broker (clean_session = 0). Must be called before loopStart()
     void enableLastWillMessage(const char *topic, const char *message, const bool retain = false, int qos = 0); // Must be called before loopStart().
-    void enableDrasticResetOnConnectionFailures() { _drasticResetOnConnectionFailures = true; }    // Can be usefull in special cases where the ESP board hang and need resetting (#59)
+    void enableDrasticResetOnConnectionFailures() { _drasticResetOnConnectionFailures.store(true, std::memory_order_relaxed); } // Can be useful in special cases where the ESP board hangs and needs resetting (#59)
 
     void disableAutoReconnect();
     void setTaskPrio(int prio);
@@ -131,7 +140,7 @@ public:
         }
 
         if (url == nullptr) {
-            if (_enableSerialLogs) {
+            if (_enableSerialLogs.load(std::memory_order_relaxed)) {
                 ESP_LOGE("ESP32MQTTClient", "URL is null");
             }
             return;
@@ -143,7 +152,7 @@ public:
 
         _mqttUriBuffer = (char *)malloc(needed);
         if (_mqttUriBuffer == nullptr) {
-            if (_enableSerialLogs) {
+            if (_enableSerialLogs.load(std::memory_order_relaxed)) {
                 ESP_LOGE("ESP32MQTTClient", "Failed to allocate memory for MQTT URI");
             }
             return;
@@ -152,7 +161,7 @@ public:
         const char* scheme = (port == 8883) ? "mqtts" : "mqtt";
         snprintf(_mqttUriBuffer, needed, "%s://%s:%u", scheme, url, static_cast<unsigned>(port));
 
-        if (_enableSerialLogs)
+        if (_enableSerialLogs.load(std::memory_order_relaxed))
         {
             ESP_LOGI("ESP32MQTTClient", "MQTT uri %s", _mqttUriBuffer);
         }
@@ -194,5 +203,7 @@ private:
                            MessageReceivedCallbackWithTopic callbackWithTopic, uint8_t qos);
 
     void onMessageReceivedCallback(const char *topic, const char *payload, unsigned int length);
+    bool isValidPublishTopic(const std::string &topic) const;
+    bool isValidTopicFilter(const std::string &topicFilter) const;
     bool mqttTopicMatch(const std::string &topic1, const std::string &topic2);
 };

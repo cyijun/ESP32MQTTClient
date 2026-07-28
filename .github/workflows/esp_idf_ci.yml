@@ -9,22 +9,34 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_esp_idf_example:
-    name: Build CppEspIdf example with ESP-IDF ${{ matrix.idf_version }}
-    runs-on: ubuntu-latest
+    name: Build CppEspIdf with ESP-IDF ${{ matrix.idf_version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
-        idf_version: ['v4.4.6', 'v5.3']
+        idf_version:
+          - v4.4.6
+          - v5.3
+          - v5.5.3
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           path: ${{ github.workspace }}/app
 
       - name: Build with ESP-IDF ${{ matrix.idf_version }}
-        uses: espressif/esp-idf-ci-action@v1
+        uses: espressif/esp-idf-ci-action@8cd22ae10042fadc37890e81e9988a9113e7b506 # v1.1.0
         with:
           esp_idf_version: ${{ matrix.idf_version }}
           target: esp32

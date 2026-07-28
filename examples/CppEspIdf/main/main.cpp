@@ -1,3 +1,4 @@
+#include <cstring>
 #include <stdio.h>
 #include <string>
 #include "freertos/FreeRTOS.h"
@@ -75,8 +76,14 @@ void wifi_init(void)
                                                         &instance_got_ip));
 
     wifi_config_t wifi_config = {};
-    strcpy((char*)wifi_config.sta.ssid, WIFI_SSID);
-    strcpy((char*)wifi_config.sta.password, WIFI_PASS);
+    constexpr std::size_t wifiSsidLength = sizeof(WIFI_SSID) - 1;
+    constexpr std::size_t wifiPassLength = sizeof(WIFI_PASS) - 1;
+    static_assert(wifiSsidLength <= sizeof(wifi_config.sta.ssid),
+                  "WIFI_SSID is too long");
+    static_assert(wifiPassLength < sizeof(wifi_config.sta.password),
+                  "WIFI_PASS is too long");
+    std::memcpy(wifi_config.sta.ssid, WIFI_SSID, wifiSsidLength);
+    std::memcpy(wifi_config.sta.password, WIFI_PASS, wifiPassLength + 1);
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 
 
@@ -109,8 +116,11 @@ esp_err_t handleMQTT(esp_mqtt_event_handle_t event)
 #else
 void handleMQTT(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
+    (void)base;
+    (void)event_id;
+    auto *client = static_cast<ESP32MQTTClient *>(handler_args);
     auto *event = static_cast<esp_mqtt_event_handle_t>(event_data);
-    mqttClient.onEventCallback(event);
+    client->onEventCallback(event);
 }
 #endif
 
@@ -135,8 +145,6 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    wifi_init();
-
     mqttClient.enableDebuggingMessages();
     mqttClient.setURI(MQTT_URI);
     mqttClient.enableLastWillMessage("lwt", "I am going offline");
@@ -144,6 +152,8 @@ extern "C" void app_main(void)
     mqttClient.setOnMessageCallback([](const std::string &topic, const std::string &payload) {
         ESP_LOGI(TAG, "Global callback: %s: %s", topic.c_str(), payload.c_str());
     });
-    
+
+    wifi_init();
+
     xTaskCreate(&main_task, "main_task", 4096, NULL, 5, NULL);
 }

@@ -6,17 +6,19 @@ Guidance for AI coding agents working on this repository. Assumes no prior knowl
 
 **ESP32MQTTClient** is a C++ MQTT client library for ESP32, built directly on the official ESP-IDF `esp-mqtt` component (`mqtt_client.h`) rather than PubSubClient. It works in two environments:
 
-- **Arduino ESP32** (`arduino-esp32` v2/v3+), distributed as an Arduino library (`library.properties`, currently version 1.1.3, `architectures=esp32`).
+- **Arduino ESP32** (`arduino-esp32` v2/v3+), distributed as an Arduino library (`library.properties`, currently version 1.1.5, `architectures=esp32`).
 - **Native ESP-IDF** (v4.x and v5.x), registered as an ESP-IDF component via the top-level `CMakeLists.txt` / `component.mk`.
 
 Key characteristics:
 
-- **Non-blocking**: `loopStart()` returns immediately; MQTT runs in a background FreeRTOS task managed by esp-mqtt. No `loop()` polling call is required in user code.
+- **Non-blocking connection startup**: `loopStart()` returns immediately; connection and event handling run in a background FreeRTOS task managed by esp-mqtt. No `loop()` polling call is required in user code. `publish()` uses `esp_mqtt_client_publish()` and may block on network access or message fragmentation.
 - Uses standard C++ `std::string` everywhere — **never** Arduino `String`.
 - Logging uses ESP-IDF `ESP_LOGX` macros with tag `"ESP32MQTTClient"`.
 - Interfaces are inspired by [EspMQTTClient](https://github.com/plapointe6/EspMQTTClient).
 - TLS/SSL support via `setCaCert()` / `setClientCert()` / `setKey()`; `setURL()` automatically selects the `mqtts://` scheme when port is 8883.
 - Supports per-topic subscription callbacks, a global catch-all callback (`setOnMessageCallback`), MQTT wildcards (`#`, `+`) matched by `mqttTopicMatch()`, and reassembly of fragmented incoming messages (`MQTT_EVENT_DATA` chunks buffered in `_incomingTopic`/`_incomingPayload` until complete).
+- `publish()` / `subscribe()` / `unsubscribe()` return whether esp-mqtt accepted the local request, not whether the broker sent PUBACK / SUBACK / UNSUBACK.
+- Incoming fragmented messages are reassembled up to 16 KiB by default. Calling `setMaxPacketSize()` with a larger value also raises that reassembly limit without adding a separate public setting.
 
 ## Repository Layout
 
@@ -31,6 +33,7 @@ examples/HelloToMyself/      # Arduino sketch example (.ino)
 examples/CppEspIdf/          # Native ESP-IDF example project
   components/ESP32MQTTClient/CMakeLists.txt  # Thin wrapper that compiles ../../../../src directly
 .github/workflows/           # CI (see Testing / CI below)
+tests/                       # Host behavior tests with lightweight ESP-IDF/esp-mqtt fakes
 README.md                    # User-facing documentation and API reference
 ```
 
@@ -38,21 +41,34 @@ The entire library is a single class (`ESP32MQTTClient`) in one header/source pa
 
 ## Build and Test Commands
 
-There are no unit tests in this repository. Verification is compile-based, via the two CI workflows and the example projects.
+The repository has lightweight host behavior tests plus compile checks for both
+supported environments.
+
+### Host behavior tests
+
+```bash
+bash tests/run_host_tests.sh
+```
+
+The script compiles `tests/host_tests.cpp` with a C++11 host compiler and fake
+ESP-IDF/esp-mqtt headers for both the IDF 4.4.6 and IDF 5.3 compatibility
+branches. It exercises binary publishing, topic matching, subscription rollback,
+and fragmented-message reassembly without ESP32 hardware.
 
 ### Arduino ESP32 (CI)
 
-`.github/workflows/ci4main.yml` uses [adafruit/ci-arduino](https://github.com/adafruit/ci-arduino): it checks out that repo into `ci/`, runs `bash ci/actions_install.sh`, then `python3 ci/build_platform.py esp32`, which compiles the `.ino` examples against arduino-esp32. Note: `ci/build_platform.py` is **not** in this repo — it comes from the checked-out ci-arduino repo. Locally, equivalent checks are:
+`.github/workflows/ci4main.yml` uses `arduino-cli` to compile the Arduino example
+against arduino-esp32 2.0.17 and 3.3.11. Locally, an equivalent check is:
 
 ```bash
 # With arduino-cli (ESP32 core installed):
-arduino-cli compile --fqbn esp32:esp32:esp32 examples/HelloToMyself
+arduino-cli compile --fqbn esp32:esp32:esp32 --library . examples/HelloToMyself
 ```
 
 ### Native ESP-IDF
 
 ```bash
-# Set up the ESP-IDF environment first (tested versions: v4.4.6 and v5.3):
+# Set up the ESP-IDF environment first (CI versions: v4.4.6, v5.3, and v5.5.3):
 export IDF_PATH=/path/to/esp-idf
 . $IDF_PATH/export.sh
 
@@ -65,7 +81,12 @@ Before building the example, edit `examples/CppEspIdf/main/main.cpp` to set real
 
 ### CI matrix
 
-`.github/workflows/esp_idf_ci.yml` builds `examples/CppEspIdf` with `espressif/esp-idf-ci-action` for target `esp32` against **ESP-IDF v4.4.6 and v5.3**. Any change to `src/` must compile under both. Note that the IDF CI compiles `src/` through the thin wrapper in `examples/CppEspIdf/components/ESP32MQTTClient/`; the top-level `CMakeLists.txt` component-registration path is not directly covered by CI.
+`.github/workflows/esp_idf_ci.yml` builds `examples/CppEspIdf` with
+`espressif/esp-idf-ci-action` for target `esp32` against **ESP-IDF v4.4.6, v5.3,
+and v5.5.3**. Any change to `src/` must compile under all three. The IDF CI
+compiles `src/` through the thin wrapper in
+`examples/CppEspIdf/components/ESP32MQTTClient/`; the top-level `CMakeLists.txt`
+component-registration path is not directly covered by CI.
 
 ## Code Style Guidelines
 
@@ -80,6 +101,7 @@ Before building the example, edit `examples/CppEspIdf/main/main.cpp` to set real
 - `std::string` only; pass as `const std::string &`. Convert Arduino `String` at call sites with `.c_str()`.
 - `uint16_t` / `uint8_t` for sizes and QoS, `int` for esp-mqtt return codes, `bool` for success/failure.
 - `publish()` passes the full `std::string` length to esp-mqtt, so binary payloads with embedded `\0` are preserved — keep it that way.
+- `publish()` / `subscribe()` / `unsubscribe()` return `true` when the request was submitted to esp-mqtt; they do not wait for a broker acknowledgement.
 - Inline trivial getters/setters in the header (see `isConnected()`, `setURI()`, `setURL()`).
 
 ### Compilation constraints
@@ -130,9 +152,10 @@ These are declared in `ESP32MQTTClient.h` and called from `onEventCallback()` / 
 
 ## Testing Instructions
 
-- No automated test suite exists; do not claim "tests pass". The honest verification for any `src/` change is:
-  1. `idf.py build` of `examples/CppEspIdf` under both an IDF 4.x and an IDF 5.x toolchain (CI does v4.4.6 + v5.3).
-  2. An Arduino compile of `examples/HelloToMyself` (arduino-cli or the ci-arduino script as in `ci4main.yml`).
+- Run `bash tests/run_host_tests.sh` for behavior covered by the host fakes.
+- Host tests do not replace platform builds. The honest compile verification for any `src/` change is:
+  1. `idf.py build` of `examples/CppEspIdf` under an IDF 4.x and IDF 5.x toolchain (CI does v4.4.6, v5.3, and v5.5.3).
+  2. An Arduino compile of `examples/HelloToMyself` with arduino-esp32 v2 and v3.
 - If you change the public API, update both examples and the README API reference so CI exercises the new signatures.
 
 ## Deployment / Release Process
