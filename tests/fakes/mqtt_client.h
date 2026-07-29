@@ -61,78 +61,78 @@ using esp_event_handler_t = void (*)(void *, esp_event_base_t, std::int32_t, voi
 
 struct esp_mqtt_client_config_t
 {
-    const char *uri = nullptr;
-    const char *client_id = nullptr;
-    const char *username = nullptr;
-    const char *password = nullptr;
-    bool disable_auto_reconnect = false;
-    int task_prio = 0;
-    const char *client_cert_pem = nullptr;
-    const char *cert_pem = nullptr;
-    const char *client_key_pem = nullptr;
-    std::uint16_t keepalive = 0;
-    const char *lwt_topic = nullptr;
-    const char *lwt_msg = nullptr;
-    int lwt_qos = 0;
-    bool lwt_retain = false;
-    int lwt_msg_len = 0;
-    int disable_clean_session = 0;
-    int out_buffer_size = 0;
-    int buffer_size = 0;
-    esp_err_t (*event_handle)(esp_mqtt_event_handle_t) = nullptr;
+    const char *uri;
+    const char *client_id;
+    const char *username;
+    const char *password;
+    bool disable_auto_reconnect;
+    int task_prio;
+    const char *client_cert_pem;
+    const char *cert_pem;
+    const char *client_key_pem;
+    std::uint16_t keepalive;
+    const char *lwt_topic;
+    const char *lwt_msg;
+    int lwt_qos;
+    bool lwt_retain;
+    int lwt_msg_len;
+    int disable_clean_session;
+    int out_buffer_size;
+    int buffer_size;
+    esp_err_t (*event_handle)(esp_mqtt_event_handle_t);
 
     struct
     {
         struct
         {
-            const char *uri = nullptr;
+            const char *uri;
         } address;
         struct
         {
-            const char *certificate = nullptr;
+            const char *certificate;
         } verification;
     } broker;
 
     struct
     {
-        const char *client_id = nullptr;
-        const char *username = nullptr;
+        const char *client_id;
+        const char *username;
         struct
         {
-            const char *password = nullptr;
-            const char *certificate = nullptr;
-            const char *key = nullptr;
+            const char *password;
+            const char *certificate;
+            const char *key;
         } authentication;
     } credentials;
 
     struct
     {
-        bool disable_auto_reconnect = false;
+        bool disable_auto_reconnect;
     } network;
 
     struct
     {
-        int priority = 0;
+        int priority;
     } task;
 
     struct
     {
-        std::uint16_t keepalive = 0;
-        int disable_clean_session = 0;
+        std::uint16_t keepalive;
+        int disable_clean_session;
         struct
         {
-            const char *topic = nullptr;
-            const char *msg = nullptr;
-            int qos = 0;
-            bool retain = false;
-            int msg_len = 0;
+            const char *topic;
+            const char *msg;
+            int qos;
+            bool retain;
+            int msg_len;
         } last_will;
     } session;
 
     struct
     {
-        int out_size = 0;
-        int size = 0;
+        int out_size;
+        int size;
     } buffer;
 };
 

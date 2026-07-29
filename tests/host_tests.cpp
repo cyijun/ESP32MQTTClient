@@ -6,6 +6,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -19,6 +20,9 @@
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
+
+static_assert(std::is_trivial<esp_mqtt_client_config_t>::value,
+              "The fake MQTT config must mirror the trivial ESP-IDF C struct");
 
 namespace fake
 {
