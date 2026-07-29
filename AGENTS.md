@@ -35,6 +35,7 @@ examples/CppEspIdf/          # Native ESP-IDF example project
 .github/workflows/           # CI (see Testing / CI below)
 tests/                       # Host behavior tests with lightweight ESP-IDF/esp-mqtt fakes
 README.md                    # User-facing documentation and API reference
+README_CN.md                 # Simplified Chinese documentation
 ```
 
 The entire library is a single class (`ESP32MQTTClient`) in one header/source pair. Keep it that way unless there is a strong reason to split.
