@@ -1,0 +1,21 @@
+{
+  "source": "https://github.com/deepseek-ai/deepseek-harness",
+  "revision": "fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159",
+  "files_sha256": {
+    ".agents/skills/dsh-prose-standard/SKILL.md": "63530dfc600b1be07b6f2c1d1a794a3ce0ef78f91d2c18b7b1303dce3b0d5e72",
+    ".agents/skills/dsh-prose-standard/references/examples.md": "ea37f63a96458206edc436ee71aa1a89b5219347f74556aa413ba1dfd1246572",
+    ".agents/skills/dsh-trim-cot-leakage/SKILL.md": "977eeb1dfe694e170ac36d9a61c2d9548a2547c3bc170c87e50033cc701d7c2e",
+    ".agents/skills/dsh-trim-cot-leakage/references/examples.md": "893ad4a0680ecd18d515ba8b4bc1487df783e4eb49a82316e1b065a5c8c28a90",
+    ".agents/skills/dsh-trim-cot-leakage/references/recall-batteries.md": "179ef0336af3a4a33410bec4e11e802c7c78ba8a0bdf6d455503dbf539e2a34c",
+    ".agents/skills/dsh-archive-agent-notes/SKILL.md": "298e95629ade953ba5e0e4fd4c50e5205389ac6adc5d55dea1ef26617a323f84",
+    ".agents/skills/dsh-doc/SKILL.md": "a0f5a09bf759a75d63d145d64899c640dcc240845e15eb5b87a3a2ab2eda65de",
+    "docs/AGENTS.md": "b2ad3d4512a470413500fe52ed85784ca7314ee9622514b2d5aeb641081bbe11",
+    ".agents/skills/dsh-doc/references/structure-hierarchy.md": "869ae393be457951c89175ed9a6f02957d013b7b4b9b44785efbbcfead40ca8e",
+    ".agents/skills/dsh-doc/references/review.md": "81f5bb876ad13bd2e550953d7c4ff9962d47b5f73d57219932e968029a89a216",
+    ".agents/notes/README.md": "089a84df7751fa993630302cb0ea1bf3ac10bf3f4bcca70ee95e55208b071f37",
+    ".agents/notes/implemented/AGENTS.md": "d01c6586ab5f807ccdda2e6ec30185416356b13d1f2fddb40d05cdac6d35189c",
+    ".agents/notes/archived/AGENTS.md": "63d728ce615c3a8109f0467a32525ca00c4c553e76a532fe90f13642e6986b34",
+    "LICENSE": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be"
+  },
+  "adaptation": "Portable policy and workflows; removed repository paths, runtime-specific rules, mandatory bilingual machinery, historical exceptions, and fixed package commands. Most prose/trim examples and archive classification retained. No runtime dependency on upstream."
+}

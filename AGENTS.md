@@ -170,3 +170,13 @@ These are declared in `ESP32MQTTClient.h` and called from `onEventCallback()` / 
 - `setURL()` builds the broker URI into a heap buffer sized as `strlen(url) + 16`; if you change the scheme/port formatting, re-check that bound.
 - TLS is opt-in (`setCaCert()`); without it the client connects in plaintext. Keep the README's TLS example accurate when touching certificate APIs.
 - `handleMQTT` (IDF 5.x) receives `this` as handler args; the library trusts the event loop to deliver valid `event_data` — validate before dereferencing if you extend event handling.
+
+<!-- agent-docs:start -->
+## Agent documentation
+
+Follow [the documentation standard](.agents/skills/doc-maintenance/references/standard.md) for affected docs. Current behavior, procedures, decision rationale, and incident history each have one owner. Update only documents affected by the requested work; never infer historical rationale from code.
+
+Before authoring or reviewing initialization output, explicitly open [.agents/skills/doc-maintenance/SKILL.md](.agents/skills/doc-maintenance/SKILL.md), [prose-standard](.agents/skills/prose-standard/SKILL.md), and [trim-session-residue](.agents/skills/trim-session-residue/SKILL.md), including their required references, even if absent from the skill catalog. For decisions also read [archive-agent-notes](.agents/skills/archive-agent-notes/SKILL.md). Copying is not loading. Complete the review in the same turn; do not wait for discovery refresh.
+
+Project paths and checks: [.agents/docs-config.json](.agents/docs-config.json). Use the configured decision format and preserve existing instructions. Frozen archives are historical evidence, not current authority.
+<!-- agent-docs:end -->

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "docs_root": "docs",
+  "notes_root": ".agents/notes",
+  "notes_format": "managed",
+  "archive_root": ".agents/notes/archived",
+  "language": "zh",
+  "extra_docs": ["README_CN.md"],
+  "exclude": [
+    "vendor",
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".agents/doc-tools/.local"
+  ],
+  "budgets": {},
+  "check_command": "python3 .agents/doc-tools/docs.py check --root ."
+}
